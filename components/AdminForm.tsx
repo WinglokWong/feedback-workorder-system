@@ -7,6 +7,7 @@ import type { AssignableAccount } from "../lib/admin";
 import Pagination from "./Pagination";
 
 const statusLabels = { pending:"待处理", processing:"处理中", completed:"已完成" } as const;
+const deploymentStatusLabels = { undeployed:"未部署", deployed:"已部署" } as const;
 const EMPTY_REPORTER = "__empty__";
 function urgencyStars(value:number) { return `${"★".repeat(value)}${"☆".repeat(5 - value)}`; }
 
@@ -154,6 +155,15 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
     setActionId(null);
   }
 
+  async function updateDeploymentStatus(ticket:TicketRecord, deploymentStatus:TicketRecord["deploymentStatus"]) {
+    setActionId(ticket.id); setMessage("");
+    const response = await fetch(`/api/tickets/${ticket.id}`, { method:"PATCH", headers:{ "content-type":"application/json" }, body:JSON.stringify({ deploymentStatus }) });
+    const result = await response.json() as { error?:string };
+    if (!response.ok) setMessage(result.error ?? "部署状态更新失败。");
+    else { setMessage(`部署状态已更新为“${deploymentStatusLabels[deploymentStatus]}”。`); router.refresh(); }
+    setActionId(null);
+  }
+
   async function updateTicket(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingTicket) return;
@@ -167,6 +177,7 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
       scheduledAt:String(form.get("scheduledAt") ?? ""),
       systemId:String(form.get("systemId") ?? ""),
       status:String(form.get("status") ?? "pending"),
+      deploymentStatus:String(form.get("deploymentStatus") ?? "undeployed"),
       urgency:String(form.get("urgency") ?? "1"),
       assignedUserId:String(form.get("assignedUserId") ?? ""),
     };
@@ -249,6 +260,7 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
           <label><span>反馈人 <small>选填</small></span><input name="reporter" maxLength={80} placeholder="填写反馈人姓名或称呼" /></label>
           <label><span>日期 *</span><input name="scheduledAt" type="date" defaultValue={localDate()} required /></label>
           <label><span>状态 *</span><select name="status" defaultValue="pending" required><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select></label>
+          <label><span>部署状态 *</span><select name="deploymentStatus" defaultValue="undeployed" required><option value="undeployed">未部署</option><option value="deployed">已部署</option></select></label>
           <label><span>紧急程度 <small>默认 1 星</small></span><select name="urgency" defaultValue="1"><option value="1">★☆☆☆☆ 1 星</option><option value="2">★★☆☆☆ 2 星</option><option value="3">★★★☆☆ 3 星</option><option value="4">★★★★☆ 4 星</option><option value="5">★★★★★ 5 星（最紧急）</option></select></label>
           <label><span>指定修改人 <small>选填；不填则所有人可见</small></span><select name="assignedUserId" defaultValue=""><option value="">不指定（所有人可见）</option>{assignees.map((account) => <option value={account.id} key={account.id}>{account.username}（ID {account.id}）</option>)}</select></label>
           <label><span>具体内容 *</span><textarea name="content" maxLength={20000} required rows={8} placeholder="填写完整的安排、影响范围及注意事项……" /></label>
@@ -264,8 +276,8 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
         {tickets.length > 0 && <div className="manage-filters" aria-label="已有工单筛选条件"><label><span>系统</span><select value={manageSystem} onChange={(event) => setManageSystem(event.target.value)}><option value="">全部系统</option>{manageSystems.map((system) => <option value={system.id} key={system.id}>{system.name}</option>)}</select></label><label><span>反馈人</span><select value={manageReporter} onChange={(event) => setManageReporter(event.target.value)}><option value="">全部反馈人</option><option value={EMPTY_REPORTER}>未填写</option>{manageReporters.map((reporter) => <option value={reporter} key={reporter}>{reporter}</option>)}</select></label><button type="button" disabled={!hasManageFilters} onClick={clearManageFilters}>清除筛选</button></div>}
         {tickets.length === 0 ? <p className="admin-empty">暂无工单</p> : filteredTickets.length === 0 ? <p className="admin-empty">没有符合条件的工单</p> : <>
           <div className="manage-list">{pagedManageTickets.map((ticket) => <article className="manage-item" key={ticket.id}>
-            <div><div className="manage-meta"><span>{ticket.systemName ?? "未分类"}</span><time>{new Date(ticket.scheduledAt).toLocaleDateString("zh-CN", { timeZone:"Asia/Shanghai" })}</time><em className="urgency-badge">{urgencyStars(ticket.urgency)}</em>{ticket.reporter && <em>反馈人：{ticket.reporter}</em>}<em>创建人：{ticket.createdByName ?? "未知"}</em><em>修改人：{ticket.assignedUserName ?? "全部"}</em></div><h3>{ticket.title || "无标题工单"}</h3><p>{ticket.content}</p></div>
-            <div className="manage-actions"><select aria-label={`设置“${ticket.title || "无标题工单"}”的状态`} className={`status-select status-${ticket.status}`} value={ticket.status} disabled={actionId === ticket.id} onChange={(event) => updateStatus(ticket, event.target.value as TicketRecord["status"])}><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select>{(superAdmin || ticket.createdByUserId === currentUserId) && <button className="edit-button" type="button" disabled={actionId === ticket.id} onClick={() => toggleEdit(ticket)}>修改</button>}<button className="danger-button" type="button" disabled={actionId === ticket.id} onClick={() => deleteTicket(ticket)}>删除</button></div>
+            <div><div className="manage-meta"><span>{ticket.systemName ?? "未分类"}</span><time>{new Date(ticket.scheduledAt).toLocaleDateString("zh-CN", { timeZone:"Asia/Shanghai" })}</time><em className={`deployment-badge deployment-${ticket.deploymentStatus}`}>{deploymentStatusLabels[ticket.deploymentStatus]}</em><em className="urgency-badge">{urgencyStars(ticket.urgency)}</em>{ticket.reporter && <em>反馈人：{ticket.reporter}</em>}<em>创建人：{ticket.createdByName ?? "未知"}</em><em>修改人：{ticket.assignedUserName ?? "全部"}</em></div><h3>{ticket.title || "无标题工单"}</h3><p>{ticket.content}</p></div>
+            <div className="manage-actions"><select aria-label={`设置“${ticket.title || "无标题工单"}”的状态`} className={`status-select status-${ticket.status}`} value={ticket.status} disabled={actionId === ticket.id} onChange={(event) => updateStatus(ticket, event.target.value as TicketRecord["status"])}><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select><select aria-label={`设置“${ticket.title || "无标题工单"}”的部署状态`} className={`deployment-select deployment-${ticket.deploymentStatus}`} value={ticket.deploymentStatus} disabled={actionId === ticket.id} onChange={(event) => updateDeploymentStatus(ticket, event.target.value as TicketRecord["deploymentStatus"])}><option value="undeployed">未部署</option><option value="deployed">已部署</option></select>{(superAdmin || ticket.createdByUserId === currentUserId) && <button className="edit-button" type="button" disabled={actionId === ticket.id} onClick={() => toggleEdit(ticket)}>修改</button>}<button className="danger-button" type="button" disabled={actionId === ticket.id} onClick={() => deleteTicket(ticket)}>删除</button></div>
             {editingTicket?.id === ticket.id && <form className="ticket-edit-form" onSubmit={updateTicket}>
               <div className="ticket-edit-heading"><strong>修改工单内容</strong><small>创建人及超级管理员可以保存修改</small></div>
               <label><span>系统 *</span><select name="systemId" required defaultValue={ticket.systemId ?? ""}><option value="" disabled>请选择系统</option>{systems.map((system) => <option value={system.id} key={system.id}>{system.name}</option>)}</select></label>
@@ -273,6 +285,7 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
               <label><span>反馈人 <small>选填</small></span><input name="reporter" maxLength={80} defaultValue={ticket.reporter ?? ""} /></label>
               <label><span>日期 *</span><input name="scheduledAt" type="date" required defaultValue={formDate(ticket.scheduledAt)} /></label>
               <label><span>状态 *</span><select name="status" required defaultValue={ticket.status}><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select></label>
+              <label><span>部署状态 *</span><select name="deploymentStatus" required defaultValue={ticket.deploymentStatus}><option value="undeployed">未部署</option><option value="deployed">已部署</option></select></label>
               <label><span>紧急程度 *</span><select name="urgency" required defaultValue={ticket.urgency}><option value="1">★☆☆☆☆ 1 星</option><option value="2">★★☆☆☆ 2 星</option><option value="3">★★★☆☆ 3 星</option><option value="4">★★★★☆ 4 星</option><option value="5">★★★★★ 5 星（最紧急）</option></select></label>
               <label><span>指定修改人 <small>选填</small></span><select name="assignedUserId" defaultValue={ticket.assignedUserId ?? ""}><option value="">不指定（所有人可见）</option>{assignees.map((account) => <option value={account.id} key={account.id}>{account.username}（ID {account.id}）</option>)}</select></label>
               <label className="ticket-edit-content"><span>具体内容 *</span><textarea name="content" maxLength={20000} required rows={7} defaultValue={ticket.content} /></label>

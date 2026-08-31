@@ -18,6 +18,7 @@ export type TicketRecord = {
   systemId: number | null;
   systemName: string | null;
   status: TicketStatus;
+  deploymentStatus: DeploymentStatus;
   urgency: number;
   createdByUserId: number | null;
   assignedUserId: number | null;
@@ -28,6 +29,7 @@ export type TicketRecord = {
 };
 
 export type TicketStatus = "pending" | "processing" | "completed";
+export type DeploymentStatus = "undeployed" | "deployed";
 
 export type SystemRecord = { id:number; name:string; createdAt:number };
 
@@ -53,6 +55,7 @@ export async function ensureSchema(db: D1Database) {
   if (columns.size > 0 && !columns.has("urgency")) await db.prepare("ALTER TABLE tickets ADD COLUMN urgency INTEGER NOT NULL DEFAULT 1").run();
   if (columns.size > 0 && !columns.has("created_by_user_id")) await db.prepare("ALTER TABLE tickets ADD COLUMN created_by_user_id INTEGER").run();
   if (columns.size > 0 && !columns.has("assigned_user_id")) await db.prepare("ALTER TABLE tickets ADD COLUMN assigned_user_id INTEGER").run();
+  if (columns.size > 0 && !columns.has("deployment_status")) await db.prepare("ALTER TABLE tickets ADD COLUMN deployment_status TEXT NOT NULL DEFAULT 'undeployed'").run();
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS tickets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,6 +72,7 @@ export async function ensureSchema(db: D1Database) {
       ,urgency INTEGER NOT NULL DEFAULT 1
       ,created_by_user_id INTEGER
       ,assigned_user_id INTEGER
+      ,deployment_status TEXT NOT NULL DEFAULT 'undeployed'
     )`),
     db.prepare("CREATE INDEX IF NOT EXISTS idx_tickets_scheduled_at ON tickets (scheduled_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets (created_at)"),
@@ -86,7 +90,7 @@ export async function ensureSchema(db: D1Database) {
   ]);
 }
 
-type TicketRow = { id:number; title:string; content:string; scheduled_at:number; created_at:number; author_email:string; reporter:string|null; system_id:number|null; system_name:string|null; status:TicketStatus; urgency:number; created_by_user_id:number|null; assigned_user_id:number|null; creator_name:string|null; assignee_name:string|null; completed_at:number|null };
+type TicketRow = { id:number; title:string; content:string; scheduled_at:number; created_at:number; author_email:string; reporter:string|null; system_id:number|null; system_name:string|null; status:TicketStatus; deployment_status:DeploymentStatus; urgency:number; created_by_user_id:number|null; assigned_user_id:number|null; creator_name:string|null; assignee_name:string|null; completed_at:number|null };
 type AttachmentRow = { id:number; ticket_id:number; file_name:string; content_type:string; size:number };
 
 type TicketViewer = { id:number; role:"admin"|"superadmin"; forcePasswordChange?:boolean } | null;
@@ -95,7 +99,7 @@ export async function listTickets(viewer:TicketViewer = null): Promise<TicketRec
   const { DB } = appEnv();
   await ensureSchema(DB);
   const effectiveViewer = viewer?.forcePasswordChange ? null : viewer;
-  const selectSql = "SELECT tickets.id, tickets.title, tickets.content, tickets.scheduled_at, tickets.created_at, tickets.author_email, tickets.reporter, tickets.system_id, systems.name AS system_name, tickets.status, tickets.urgency, tickets.created_by_user_id, tickets.assigned_user_id, creators.username AS creator_name, assignees.username AS assignee_name, tickets.completed_at FROM tickets LEFT JOIN systems ON systems.id = tickets.system_id LEFT JOIN users AS creators ON creators.id = tickets.created_by_user_id LEFT JOIN users AS assignees ON assignees.id = tickets.assigned_user_id";
+  const selectSql = "SELECT tickets.id, tickets.title, tickets.content, tickets.scheduled_at, tickets.created_at, tickets.author_email, tickets.reporter, tickets.system_id, systems.name AS system_name, tickets.status, tickets.deployment_status, tickets.urgency, tickets.created_by_user_id, tickets.assigned_user_id, creators.username AS creator_name, assignees.username AS assignee_name, tickets.completed_at FROM tickets LEFT JOIN systems ON systems.id = tickets.system_id LEFT JOIN users AS creators ON creators.id = tickets.created_by_user_id LEFT JOIN users AS assignees ON assignees.id = tickets.assigned_user_id";
   const orderSql = " ORDER BY tickets.created_at DESC, tickets.id DESC LIMIT 100";
   const statement = effectiveViewer?.role === "superadmin"
     ? DB.prepare(selectSql + orderSql)
@@ -116,7 +120,7 @@ export async function listTickets(viewer:TicketViewer = null): Promise<TicketRec
   return ticketRows.map((row) => ({
     id:row.id, title:row.title, content:row.content, scheduledAt:row.scheduled_at,
     createdAt:row.created_at, authorEmail:row.author_email, reporter:row.reporter, systemId:row.system_id,
-    systemName:row.system_name, status:row.status, urgency:row.urgency, createdByUserId:row.created_by_user_id,
+    systemName:row.system_name, status:row.status, deploymentStatus:row.deployment_status, urgency:row.urgency, createdByUserId:row.created_by_user_id,
     assignedUserId:row.assigned_user_id, createdByName:row.creator_name ?? row.author_email ?? null,
     assignedUserName:row.assignee_name, completedAt:row.completed_at,
     attachments:byTicket.get(row.id) ?? [],

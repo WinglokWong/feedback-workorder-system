@@ -6,6 +6,7 @@ A lightweight internal work order and feedback management system. The current pr
 
 - Create, view, filter, paginate, update, and delete work orders
 - Pending, processing, and completed workflow states
+- Separate undeployed and deployed release states
 - System categories, reporters, dates, and 1–5 star urgency levels
 - Image and file uploads with full-resolution preview, gallery navigation, and downloads
 - Optional assignees and account-based work order visibility

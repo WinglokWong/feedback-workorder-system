@@ -14,7 +14,7 @@ export async function PATCH(request:Request, context:{ params:Promise<{ id:strin
   const auth = await authorize(); if ("error" in auth) return auth.error;
   const id = parseId((await context.params).id);
   if (!id) return Response.json({ error:"工单不存在。" }, { status:404 });
-  const payload = await request.json() as { action?:string; title?:string; content?:string; reporter?:string; status?:string; urgency?:number|string; scheduledAt?:string; systemId?:number|string; assignedUserId?:number|string|null };
+  const payload = await request.json() as { action?:string; title?:string; content?:string; reporter?:string; status?:string; deploymentStatus?:string; urgency?:number|string; scheduledAt?:string; systemId?:number|string; assignedUserId?:number|string|null };
   const { DB } = appEnv(); await ensureSchema(DB);
   const ticket = await DB.prepare("SELECT assigned_user_id, created_by_user_id FROM tickets WHERE id = ?").bind(id).first<{ assigned_user_id:number|null; created_by_user_id:number|null }>();
   if (!ticket) return Response.json({ error:"工单不存在。" }, { status:404 });
@@ -25,6 +25,7 @@ export async function PATCH(request:Request, context:{ params:Promise<{ id:strin
     const content = String(payload.content ?? "").trim();
     const reporter = String(payload.reporter ?? "").trim();
     const status = String(payload.status ?? "pending");
+    const deploymentStatus = String(payload.deploymentStatus ?? "undeployed");
     const urgency = Number(payload.urgency ?? 1);
     const scheduledAt = Date.parse(String(payload.scheduledAt ?? ""));
     const systemId = Number(payload.systemId);
@@ -34,6 +35,7 @@ export async function PATCH(request:Request, context:{ params:Promise<{ id:strin
     if (reporter.length > 80) return Response.json({ error:"反馈人最多 80 个字符。" }, { status:400 });
     if (!content || content.length > 20000) return Response.json({ error:"具体内容为必填项，最多 20000 个字符。" }, { status:400 });
     if (!["pending", "processing", "completed"].includes(status)) return Response.json({ error:"请选择有效工单状态。" }, { status:400 });
+    if (!["undeployed", "deployed"].includes(deploymentStatus)) return Response.json({ error:"请选择有效部署状态。" }, { status:400 });
     if (!Number.isInteger(urgency) || urgency < 1 || urgency > 5) return Response.json({ error:"紧急程度必须为 1 到 5 星。" }, { status:400 });
     if (!Number.isFinite(scheduledAt)) return Response.json({ error:"请选择有效日期。" }, { status:400 });
     if (!Number.isInteger(systemId) || systemId <= 0) return Response.json({ error:"请选择所属系统。" }, { status:400 });
@@ -45,10 +47,19 @@ export async function PATCH(request:Request, context:{ params:Promise<{ id:strin
       if (!assignee) return Response.json({ error:"指定修改人不存在或已被禁用。" }, { status:400 });
     }
     const completed = status === "completed";
-    await DB.prepare("UPDATE tickets SET title = ?, content = ?, reporter = ?, scheduled_at = ?, system_id = ?, status = ?, urgency = ?, assigned_user_id = ?, completed = ?, completed_at = ? WHERE id = ?")
-      .bind(title, content, reporter || null, scheduledAt, systemId, status, urgency, assignedUserId, completed ? 1 : 0, completed ? Date.now() : null, id).run();
-    await writeLog(auth.user, "修改工单内容", "工单", id, `${title ? `标题：${title}` : "无标题工单"}；状态：${status}`);
+    await DB.prepare("UPDATE tickets SET title = ?, content = ?, reporter = ?, scheduled_at = ?, system_id = ?, status = ?, deployment_status = ?, urgency = ?, assigned_user_id = ?, completed = ?, completed_at = ? WHERE id = ?")
+      .bind(title, content, reporter || null, scheduledAt, systemId, status, deploymentStatus, urgency, assignedUserId, completed ? 1 : 0, completed ? Date.now() : null, id).run();
+    await writeLog(auth.user, "修改工单内容", "工单", id, `${title ? `标题：${title}` : "无标题工单"}；状态：${status}；部署状态：${deploymentStatus}`);
     return Response.json({ id, updated:true });
+  }
+
+  if (payload.deploymentStatus !== undefined) {
+    if (!["undeployed", "deployed"].includes(payload.deploymentStatus)) return Response.json({ error:"部署状态无效。" }, { status:400 });
+    if (!canViewOrUpdateTicket(auth.user, ticket.assigned_user_id, ticket.created_by_user_id)) return Response.json({ error:"工单不存在。" }, { status:404 });
+    const result = await DB.prepare("UPDATE tickets SET deployment_status = ? WHERE id = ?").bind(payload.deploymentStatus, id).run();
+    if (!result.meta.changes) return Response.json({ error:"工单不存在。" }, { status:404 });
+    await writeLog(auth.user, "更新部署状态", "工单", id, `部署状态：${payload.deploymentStatus}`);
+    return Response.json({ id, deploymentStatus:payload.deploymentStatus });
   }
 
   if (!payload.status || !["pending", "processing", "completed"].includes(payload.status)) return Response.json({ error:"工单状态无效。" }, { status:400 });

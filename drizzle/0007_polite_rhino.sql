@@ -1,0 +1,1 @@
+ALTER TABLE `tickets` ADD `deployment_status` text DEFAULT 'undeployed' NOT NULL;

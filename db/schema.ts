@@ -10,6 +10,7 @@ export const tickets = sqliteTable("tickets", {
   reporter: text("reporter"),
   systemId: integer("system_id").references(() => systems.id, { onDelete: "set null" }),
   status: text("status", { enum: ["pending", "processing", "completed"] }).notNull().default("pending"),
+  deploymentStatus: text("deployment_status", { enum: ["undeployed", "deployed"] }).notNull().default("undeployed"),
   urgency: integer("urgency").notNull().default(1),
   createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete:"set null" }),
   assignedUserId: integer("assigned_user_id").references(() => users.id, { onDelete:"set null" }),

@@ -8,6 +8,7 @@ import Pagination from "./Pagination";
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", { year:"numeric", month:"long", day:"numeric", timeZone:"Asia/Shanghai" });
 const dateKeyFormatter = new Intl.DateTimeFormat("en-CA", { year:"numeric", month:"2-digit", day:"2-digit", timeZone:"Asia/Shanghai" });
 const statusLabels = { pending:"待处理", processing:"处理中", completed:"已完成" } as const;
+const deploymentStatusLabels = { undeployed:"未部署", deployed:"已部署" } as const;
 const EMPTY_REPORTER = "__empty__";
 function urgencyStars(value:number) { return `${"★".repeat(value)}${"☆".repeat(5 - value)}`; }
 
@@ -16,6 +17,7 @@ export default function TicketBoard({ tickets, unavailable }:{ tickets:TicketRec
   const [reporter, setReporter] = useState("");
   const [date, setDate] = useState("");
   const [status, setStatus] = useState("");
+  const [deploymentStatus, setDeploymentStatus] = useState("");
   const [urgency, setUrgency] = useState("");
   const [expandedTickets, setExpandedTickets] = useState<Set<number>>(() => new Set());
   const [page, setPage] = useState(1);
@@ -29,23 +31,24 @@ export default function TicketBoard({ tickets, unavailable }:{ tickets:TicketRec
     if (reporter && reporter !== EMPTY_REPORTER && ticket.reporter !== reporter) return false;
     if (date && dateKeyFormatter.format(ticket.scheduledAt) !== date) return false;
     if (status && ticket.status !== status) return false;
+    if (deploymentStatus && ticket.deploymentStatus !== deploymentStatus) return false;
     if (urgency && ticket.urgency !== Number(urgency)) return false;
     return true;
-  }), [tickets, system, reporter, date, status, urgency]);
+  }), [tickets, system, reporter, date, status, deploymentStatus, urgency]);
 
   const counts = {
     pending:filtered.filter((ticket) => ticket.status === "pending").length,
     processing:filtered.filter((ticket) => ticket.status === "processing").length,
     completed:filtered.filter((ticket) => ticket.status === "completed").length,
   };
-  const hasFilters = Boolean(system || reporter || date || status || urgency);
+  const hasFilters = Boolean(system || reporter || date || status || deploymentStatus || urgency);
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pagedTickets = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  useEffect(() => { setPage(1); }, [system, reporter, date, status, urgency, pageSize]);
+  useEffect(() => { setPage(1); }, [system, reporter, date, status, deploymentStatus, urgency, pageSize]);
   useEffect(() => { if (page > pageCount) setPage(pageCount); }, [page, pageCount]);
 
-  function clearFilters() { setSystem(""); setReporter(""); setDate(""); setStatus(""); setUrgency(""); }
+  function clearFilters() { setSystem(""); setReporter(""); setDate(""); setStatus(""); setDeploymentStatus(""); setUrgency(""); }
   function toggleTicket(id:number) { setExpandedTickets((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
 
   return (
@@ -64,6 +67,7 @@ export default function TicketBoard({ tickets, unavailable }:{ tickets:TicketRec
         <label><span>反馈人</span><select value={reporter} onChange={(event) => setReporter(event.target.value)}><option value="">全部反馈人</option><option value={EMPTY_REPORTER}>未填写</option>{reporters.map((name) => <option value={name} key={name}>{name}</option>)}</select></label>
         <label><span>日期</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
         <label><span>工单状态</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">全部状态</option><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select></label>
+        <label><span>部署状态</span><select value={deploymentStatus} onChange={(event) => setDeploymentStatus(event.target.value)}><option value="">全部部署状态</option><option value="undeployed">未部署</option><option value="deployed">已部署</option></select></label>
         <label><span>紧急程度</span><select value={urgency} onChange={(event) => setUrgency(event.target.value)}><option value="">全部星级</option><option value="1">★☆☆☆☆ 1 星</option><option value="2">★★☆☆☆ 2 星</option><option value="3">★★★☆☆ 3 星</option><option value="4">★★★★☆ 4 星</option><option value="5">★★★★★ 5 星</option></select></label>
         <button type="button" onClick={clearFilters} disabled={!hasFilters}>清除筛选</button>
         <p>当前显示 <b>{filtered.length}</b> / {tickets.length} 条</p>
@@ -77,7 +81,7 @@ export default function TicketBoard({ tickets, unavailable }:{ tickets:TicketRec
             const summary = ticket.content.length > 180 ? `${ticket.content.slice(0, 180)}…` : ticket.content;
             return <article className={`ticket-card ticket-card-${ticket.status}${ticket.status === "completed" ? " is-complete" : ""}`} key={ticket.id}>
               <div className="ticket-body">
-                <div className="ticket-meta"><span className="system-badge">{ticket.systemName ?? "未分类"}</span><span className={`status-${ticket.status}`}>{statusLabels[ticket.status]}</span><span className={`urgency-stars urgency-${ticket.urgency}`} aria-label={`紧急程度 ${ticket.urgency} 星`}>{urgencyStars(ticket.urgency)}</span><time dateTime={new Date(ticket.scheduledAt).toISOString()}>{dateFormatter.format(ticket.scheduledAt)}</time></div>
+                <div className="ticket-meta"><span className="system-badge">{ticket.systemName ?? "未分类"}</span><span className={`status-${ticket.status}`}>{statusLabels[ticket.status]}</span><span className={`deployment-badge deployment-${ticket.deploymentStatus}`}>{deploymentStatusLabels[ticket.deploymentStatus]}</span><span className={`urgency-stars urgency-${ticket.urgency}`} aria-label={`紧急程度 ${ticket.urgency} 星`}>{urgencyStars(ticket.urgency)}</span><time dateTime={new Date(ticket.scheduledAt).toISOString()}>{dateFormatter.format(ticket.scheduledAt)}</time></div>
                 {ticket.title && <h3>{ticket.title}</h3>}
                 {ticket.reporter && <p className="ticket-reporter">反馈人：{ticket.reporter}</p>}
                 <p className="ticket-ownership"><span>创建人：{ticket.createdByName ?? "未知"}</span><span>修改人：{ticket.assignedUserName ?? "全部"}</span></p>

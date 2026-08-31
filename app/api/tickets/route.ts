@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     const content = String(form.get("content") ?? "").trim();
     const reporter = String(form.get("reporter") ?? "").trim();
     const status = String(form.get("status") ?? "pending");
+    const deploymentStatus = String(form.get("deploymentStatus") ?? "undeployed");
     const urgency = Number(form.get("urgency") ?? 1);
     const scheduledAt = Date.parse(String(form.get("scheduledAt") ?? ""));
     const systemId = Number(form.get("systemId"));
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
     if (title.length > 120) return Response.json({ error:"标题最多 120 个字符。" }, { status:400 });
     if (reporter.length > 80) return Response.json({ error:"反馈人最多 80 个字符。" }, { status:400 });
     if (!["pending", "processing", "completed"].includes(status)) return Response.json({ error:"请选择有效工单状态。" }, { status:400 });
+    if (!["undeployed", "deployed"].includes(deploymentStatus)) return Response.json({ error:"请选择有效部署状态。" }, { status:400 });
     if (!Number.isInteger(urgency) || urgency < 1 || urgency > 5) return Response.json({ error:"紧急程度必须为 1 到 5 星。" }, { status:400 });
     if (!content || content.length > 20000) return Response.json({ error:"具体内容为必填项，最多 20000 个字符。" }, { status:400 });
     if (!Number.isFinite(scheduledAt)) return Response.json({ error:"请选择有效时间。" }, { status:400 });
@@ -45,8 +47,8 @@ export async function POST(request: Request) {
       if (!assignee) return Response.json({ error:"指定修改人不存在或已被禁用。" }, { status:400 });
     }
     const now = Date.now();
-    const inserted = await DB.prepare("INSERT INTO tickets (title, content, scheduled_at, created_at, author_email, reporter, system_id, status, urgency, created_by_user_id, assigned_user_id, completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(title, content, scheduledAt, now, user.email, reporter || null, systemId, status, urgency, user.id, assignedUserId, status === "completed" ? 1 : 0, status === "completed" ? now : null).run();
+    const inserted = await DB.prepare("INSERT INTO tickets (title, content, scheduled_at, created_at, author_email, reporter, system_id, status, deployment_status, urgency, created_by_user_id, assigned_user_id, completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(title, content, scheduledAt, now, user.email, reporter || null, systemId, status, deploymentStatus, urgency, user.id, assignedUserId, status === "completed" ? 1 : 0, status === "completed" ? now : null).run();
     const ticketId = Number(inserted.meta.last_row_id);
     const uploaded: string[] = [];
     try {
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
       await DB.prepare("DELETE FROM tickets WHERE id = ?").bind(ticketId).run();
       throw error;
     }
-    await writeLog(user, "创建工单", "工单", ticketId, `${title ? `标题：${title}` : "无标题工单"}；修改人：${assignedUserId ?? "全部"}`);
+    await writeLog(user, "创建工单", "工单", ticketId, `${title ? `标题：${title}` : "无标题工单"}；部署状态：${deploymentStatus}；修改人：${assignedUserId ?? "全部"}`);
     return Response.json({ id:ticketId }, { status:201 });
   } catch {
     return Response.json({ error:"工单创建失败，请检查内容后重试。" }, { status:500 });

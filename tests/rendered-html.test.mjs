@@ -20,7 +20,7 @@ test("未登录用户跳转登录页且看不到工单内容", async () => {
   assert.doesNotMatch(html, /最新工单|工单筛选条件/);
 });
 
-test("完整管理员流程：反馈人、三种状态和删除", { skip:!testAuthCookie }, async () => {
+test("完整管理员流程：反馈人、处理状态、部署状态和删除", { skip:!testAuthCookie }, async () => {
   const marker = `测试系统-${Date.now()}`;
   const systemResponse = await authedFetch(`/api/systems`, {
     method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ name:marker }),
@@ -65,6 +65,7 @@ test("完整管理员流程：反馈人、三种状态和删除", { skip:!testAu
   assert.equal(ticket.systemName, marker);
   assert.equal(ticket.reporter, "测试反馈人");
   assert.equal(ticket.status, "pending");
+  assert.equal(ticket.deploymentStatus, "undeployed");
   assert.equal(ticket.urgency, 5);
   assert.equal(ticket.attachments.length, 2);
   assert.equal(list.tickets.find((item) => item.id === newerId).urgency, 1);
@@ -72,7 +73,7 @@ test("完整管理员流程：反馈人、三种状态和删除", { skip:!testAu
   const edited = await authedFetch(`/api/tickets/${id}`, {
     method:"PATCH", headers:{ "content-type":"application/json" }, body:JSON.stringify({
       action:"edit", title:"已修正标题", systemId:system.id, content:"已修正工单内容", reporter:"修正后的反馈人",
-      status:"processing", urgency:3, scheduledAt:"2026-08-29", assignedUserId:"",
+      status:"processing", deploymentStatus:"deployed", urgency:3, scheduledAt:"2026-08-29", assignedUserId:"",
     }),
   });
   assert.equal(edited.status, 200);
@@ -82,6 +83,7 @@ test("完整管理员流程：反馈人、三种状态和删除", { skip:!testAu
   assert.equal(ticket.content, "已修正工单内容");
   assert.equal(ticket.reporter, "修正后的反馈人");
   assert.equal(ticket.status, "processing");
+  assert.equal(ticket.deploymentStatus, "deployed");
   assert.equal(ticket.urgency, 3);
 
   const deletedSystem = await authedFetch(`/api/systems/${system.id}`, { method:"DELETE" });
@@ -100,6 +102,14 @@ test("完整管理员流程：反馈人、三种状态和删除", { skip:!testAu
   list = await fetch(`${baseUrl}/api/tickets`).then((response) => response.json());
   ticket = list.tickets.find((item) => item.id === id);
   assert.equal(ticket.status, "processing");
+
+  const undeployed = await authedFetch(`/api/tickets/${id}`, {
+    method:"PATCH", headers:{ "content-type":"application/json" }, body:JSON.stringify({ deploymentStatus:"undeployed" }),
+  });
+  assert.equal(undeployed.status, 200);
+  list = await fetch(`${baseUrl}/api/tickets`).then((response) => response.json());
+  ticket = list.tickets.find((item) => item.id === id);
+  assert.equal(ticket.deploymentStatus, "undeployed");
 
   const completed = await authedFetch(`/api/tickets/${id}`, {
     method:"PATCH", headers:{ "content-type":"application/json" }, body:JSON.stringify({ status:"completed" }),
@@ -126,6 +136,9 @@ test("管理表单会准确显示累计附件并支持单独移除", async () =>
   assert.match(source, /setSelectedFiles\(next\)/);
   assert.match(source, /removeFile\(index\)/);
   assert.match(source, /name="urgency" defaultValue="1"/);
+  assert.match(source, /name="deploymentStatus" defaultValue="undeployed"/);
+  assert.match(source, /updateDeploymentStatus/);
+  assert.match(source, /部署状态已更新为/);
   assert.match(source, /file-input-hidden/);
   assert.match(source, /已添加 \$\{selectedFiles\.length\} 个文件/);
   assert.match(source, /暂未添加文件/);
@@ -202,13 +215,16 @@ test("图片附件保存原始字节且不执行压缩或转码", async () => {
   assert.match(css, /figure\.is-actual img \{ max-width:none; max-height:none/);
 });
 
-test("首页支持系统、反馈人、日期、状态和紧急程度组合筛选", async () => {
+test("首页支持系统、反馈人、日期、处理状态、部署状态和紧急程度组合筛选", async () => {
   const source = await readFile(new URL("../components/TicketBoard.tsx", import.meta.url), "utf8");
   assert.match(source, /setSystem/);
   assert.match(source, /setReporter/);
   assert.match(source, /setDate/);
   assert.match(source, /setStatus/);
   assert.match(source, /全部状态/);
+  assert.match(source, /setDeploymentStatus/);
+  assert.match(source, /全部部署状态/);
+  assert.match(source, /ticket\.deploymentStatus !== deploymentStatus/);
   assert.match(source, /setUrgency/);
   assert.match(source, /全部星级/);
   assert.match(source, /clearFilters/);
@@ -412,6 +428,8 @@ test("工单接口拒绝匿名访问并保持创建时间倒序", async () => {
   const source = await readFile(new URL("../lib/tickets.ts", import.meta.url), "utf8");
   assert.match(source, /ORDER BY tickets\.created_at DESC, tickets\.id DESC/);
   assert.match(source, /WHERE 1 = 0/);
+  assert.match(source, /deployment_status TEXT NOT NULL DEFAULT 'undeployed'/);
+  assert.match(source, /deploymentStatus:row\.deployment_status/);
 });
 
 test("导航使用标准链接并统一 favicon logo", async () => {
