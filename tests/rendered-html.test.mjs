@@ -148,6 +148,7 @@ test("管理表单会准确显示累计附件并支持单独移除", async () =>
   assert.match(source, /setManageReporter/);
   assert.match(source, /filteredTickets/);
   assert.match(source, /已有工单筛选条件/);
+  assert.doesNotMatch(source, /manage-meta.*deployment-badge/);
 });
 
 test("工单创建人和超级管理员可以修改工单内容及附件", async () => {
@@ -344,6 +345,8 @@ test("首页、后台和账号日志页面包含完整手机端适配", async ()
   assert.match(css, /\.manage-meta time,\.manage-meta em \{ white-space:nowrap/);
   assert.match(css, /\.manage-actions \{ display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap/);
   assert.match(css, /grid-template-columns:1fr 1fr/);
+  assert.match(css, /\.filter-panel input\[type="date"\] \{ display:block; min-width:0; min-inline-size:0; max-width:100%; max-inline-size:100%/);
+  assert.match(css, /::-webkit-date-and-time-value/);
 });
 
 test("全站使用统一冷色视觉系统与清晰卡片层级", async () => {

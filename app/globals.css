@@ -26,9 +26,11 @@ a { color:inherit; text-decoration:none; }
 .summary-processing { border-color:#c7ddeb!important; background:var(--status-processing-bg); color:var(--status-processing); }
 .summary-completed { border-color:#b9ddcc!important; background:var(--status-completed-bg); color:var(--status-completed); }
 .filter-panel { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)) auto; gap:12px; align-items:end; margin-bottom:20px; padding:16px; border:1px solid #c8d5e5; border-radius:11px; background:rgba(255,255,255,.58); }
-.filter-panel label { display:flex; min-width:0; flex-direction:column; gap:7px; }
+.filter-panel label { display:flex; min-width:0; max-width:100%; flex-direction:column; gap:7px; }
 .filter-panel label span { color:#526178; font-size:11px; font-weight:700; }
 .filter-panel select,.filter-panel input { width:100%; height:40px; padding:0 11px; border:1px solid #c5d2e1; border-radius:8px; background:white; color:var(--ink); font:inherit; font-size:12px; outline:none; }
+.filter-panel input[type="date"] { display:block; min-width:0; min-inline-size:0; max-width:100%; max-inline-size:100%; }
+.filter-panel input[type="date"]::-webkit-date-and-time-value { min-width:0; text-align:left; }
 .filter-panel select:focus,.filter-panel input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(49,95,155,.1); }
 .filter-panel button { height:40px; padding:0 14px; border:1px solid #b9c8da; border-radius:8px; background:#edf3fa; color:#315f9b; font:inherit; font-size:12px; font-weight:650; cursor:pointer; }
 .filter-panel button:disabled { opacity:.45; cursor:default; }
@@ -179,8 +181,6 @@ a { color:inherit; text-decoration:none; }
 .manage-meta span { padding:3px 7px; border-radius:5px; background:#eaf3fc; color:var(--green); font-weight:700; white-space:nowrap; }
 .manage-meta time,.manage-meta em { white-space:nowrap; }
 .manage-meta em { color:#738197; font-style:normal; }
-.manage-meta .deployment-undeployed { color:#53647a; }
-.manage-meta .deployment-deployed { color:#23705b; }
 .manage-item h3 { margin:7px 0 5px; font-size:14px; }
 .manage-item p { overflow:hidden; margin:0; color:var(--muted); font-size:12px; line-height:1.6; text-overflow:ellipsis; white-space:nowrap; }
 .manage-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; padding-top:11px; border-top:1px dashed #d7e1eb; }
