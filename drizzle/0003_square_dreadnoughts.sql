@@ -1,0 +1,1 @@
+CREATE INDEX `idx_tickets_created_at` ON `tickets` (`created_at`);

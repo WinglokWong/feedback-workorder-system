@@ -1,0 +1,22 @@
+[Unit]
+Description=Work Order System
+After=network.target
+
+[Service]
+Type=simple
+User=workorder
+Group=workorder
+WorkingDirectory=/opt/workorder/current
+Environment=NODE_ENV=production
+Environment=HOME=/var/lib/workorder
+Environment=XDG_CONFIG_HOME=/var/lib/workorder/.config
+ExecStart=/usr/bin/npx wrangler dev --config wrangler.server.jsonc --local --persist-to /var/lib/workorder/state --ip 127.0.0.1 --port 18081 --log-level warn
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/workorder /opt/workorder/current/.wrangler
+
+[Install]
+WantedBy=multi-user.target

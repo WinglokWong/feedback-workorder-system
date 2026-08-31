@@ -1,0 +1,1 @@
+ALTER TABLE `tickets` ADD `urgency` integer DEFAULT 1 NOT NULL;
