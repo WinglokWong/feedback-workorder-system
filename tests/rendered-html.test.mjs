@@ -339,6 +339,11 @@ test("首页、后台和账号日志页面包含完整手机端适配", async ()
   assert.match(css, /\.log-list article \{ padding:11px/);
   assert.match(css, /font-size:16px/);
   assert.match(css, /min-height:44px/);
+  assert.match(css, /\.manage-item \{ display:grid; grid-template-columns:minmax\(0,1fr\); gap:13px/);
+  assert.match(css, /\.manage-meta \{ display:flex; align-items:center; flex-wrap:wrap/);
+  assert.match(css, /\.manage-meta time,\.manage-meta em \{ white-space:nowrap/);
+  assert.match(css, /\.manage-actions \{ display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap/);
+  assert.match(css, /grid-template-columns:1fr 1fr/);
 });
 
 test("全站使用统一冷色视觉系统与清晰卡片层级", async () => {
