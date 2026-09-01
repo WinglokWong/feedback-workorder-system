@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import TicketBoard from "../components/TicketBoard";
+import HomeWorkspace from "../components/HomeWorkspace";
 import { listTickets } from "../lib/tickets";
 import { currentUser } from "../lib/admin";
 
@@ -19,7 +19,7 @@ export default async function Home() {
         <a href="/admin" className="admin-link">{user.username} · 后台</a>
       </header>
       <section className="hero"><div><p className="eyebrow">SERVICE BULLETIN</p><h1>工单公告</h1></div><p>查看最新服务安排、维护通知与相关附件。</p></section>
-      <TicketBoard tickets={tickets} unavailable={unavailable} />
+      <HomeWorkspace tickets={tickets} unavailable={unavailable} />
       <footer>工单中心 · 信息清晰传达，服务及时抵达</footer>
     </main>
   );

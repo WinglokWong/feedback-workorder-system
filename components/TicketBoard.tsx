@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { TicketRecord } from "../lib/tickets";
+import type { AiTicketFilter } from "../lib/ai-types";
 import AttachmentGallery from "./AttachmentGallery";
 import Pagination from "./Pagination";
 
@@ -12,7 +13,7 @@ const deploymentStatusLabels = { undeployed:"未部署", deployed:"已部署" } 
 const EMPTY_REPORTER = "__empty__";
 function urgencyStars(value:number) { return `${"★".repeat(value)}${"☆".repeat(5 - value)}`; }
 
-export default function TicketBoard({ tickets, unavailable }:{ tickets:TicketRecord[]; unavailable:boolean }) {
+export default function TicketBoard({ tickets, unavailable, aiFilter = null, onClearAiFilter }:{ tickets:TicketRecord[]; unavailable:boolean; aiFilter?:AiTicketFilter|null; onClearAiFilter?:() => void }) {
   const [ticketNumber, setTicketNumber] = useState("");
   const [system, setSystem] = useState("");
   const [reporter, setReporter] = useState("");
@@ -27,30 +28,41 @@ export default function TicketBoard({ tickets, unavailable }:{ tickets:TicketRec
   const systems = useMemo(() => Array.from(new Map(tickets.map((ticket) => [String(ticket.systemId ?? "unclassified"), ticket.systemName ?? "未分类"]))).map(([id, name]) => ({ id, name })), [tickets]);
   const reporters = useMemo(() => Array.from(new Set(tickets.map((ticket) => ticket.reporter).filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b, "zh-CN")), [tickets]);
   const filtered = useMemo(() => tickets.filter((ticket) => {
+    const ticketDate = dateKeyFormatter.format(ticket.scheduledAt);
+    if (aiFilter?.ticketNumber && !ticket.ticketNumber.includes(aiFilter.ticketNumber)) return false;
+    if (aiFilter?.systemName && !(ticket.systemName ?? "未分类").toLocaleLowerCase("zh-CN").includes(aiFilter.systemName.toLocaleLowerCase("zh-CN"))) return false;
+    if (aiFilter?.reporter && !(ticket.reporter ?? "").toLocaleLowerCase("zh-CN").includes(aiFilter.reporter.toLocaleLowerCase("zh-CN"))) return false;
+    if (aiFilter?.date && ticketDate !== aiFilter.date) return false;
+    if (aiFilter?.dateFrom && ticketDate < aiFilter.dateFrom) return false;
+    if (aiFilter?.dateTo && ticketDate > aiFilter.dateTo) return false;
+    if (aiFilter?.status && ticket.status !== aiFilter.status) return false;
+    if (aiFilter?.deploymentStatus && ticket.deploymentStatus !== aiFilter.deploymentStatus) return false;
+    if (aiFilter?.urgency && ticket.urgency !== aiFilter.urgency) return false;
     if (ticketNumber && !ticket.ticketNumber.includes(ticketNumber)) return false;
     if (system && String(ticket.systemId ?? "unclassified") !== system) return false;
     if (reporter === EMPTY_REPORTER && ticket.reporter) return false;
     if (reporter && reporter !== EMPTY_REPORTER && ticket.reporter !== reporter) return false;
-    if (date && dateKeyFormatter.format(ticket.scheduledAt) !== date) return false;
+    if (date && ticketDate !== date) return false;
     if (status && ticket.status !== status) return false;
     if (deploymentStatus && ticket.deploymentStatus !== deploymentStatus) return false;
     if (urgency && ticket.urgency !== Number(urgency)) return false;
     return true;
-  }), [tickets, ticketNumber, system, reporter, date, status, deploymentStatus, urgency]);
+  }), [tickets, aiFilter, ticketNumber, system, reporter, date, status, deploymentStatus, urgency]);
 
   const counts = {
     pending:filtered.filter((ticket) => ticket.status === "pending").length,
     processing:filtered.filter((ticket) => ticket.status === "processing").length,
     completed:filtered.filter((ticket) => ticket.status === "completed").length,
   };
-  const hasFilters = Boolean(ticketNumber || system || reporter || date || status || deploymentStatus || urgency);
+  const hasFilters = Boolean(aiFilter || ticketNumber || system || reporter || date || status || deploymentStatus || urgency);
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pagedTickets = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  useEffect(() => { setPage(1); }, [ticketNumber, system, reporter, date, status, deploymentStatus, urgency, pageSize]);
+  useEffect(() => { setPage(1); }, [aiFilter, ticketNumber, system, reporter, date, status, deploymentStatus, urgency, pageSize]);
+  useEffect(() => { if (aiFilter) { setTicketNumber(""); setSystem(""); setReporter(""); setDate(""); setStatus(""); setDeploymentStatus(""); setUrgency(""); } }, [aiFilter]);
   useEffect(() => { if (page > pageCount) setPage(pageCount); }, [page, pageCount]);
 
-  function clearFilters() { setTicketNumber(""); setSystem(""); setReporter(""); setDate(""); setStatus(""); setDeploymentStatus(""); setUrgency(""); }
+  function clearFilters() { setTicketNumber(""); setSystem(""); setReporter(""); setDate(""); setStatus(""); setDeploymentStatus(""); setUrgency(""); onClearAiFilter?.(); }
   function toggleTicket(id:number) { setExpandedTickets((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
 
   return (
@@ -75,6 +87,8 @@ export default function TicketBoard({ tickets, unavailable }:{ tickets:TicketRec
         <button type="button" onClick={clearFilters} disabled={!hasFilters}>清除筛选</button>
         <p>当前显示 <b>{filtered.length}</b> / {tickets.length} 条</p>
       </div>
+
+      {aiFilter && <div className="ai-filter-banner" role="status"><div><strong>AI筛选已应用</strong><span>{aiFilter.summary}</span></div><button type="button" onClick={onClearAiFilter}>清除AI筛选</button></div>}
 
       {unavailable ? <div className="empty-state"><strong>暂时无法载入工单</strong><p>请稍后刷新页面重试。</p></div> : tickets.length === 0 ? <div className="empty-state"><strong>暂无工单</strong><p>管理员发布的内容会显示在这里。</p></div> : filtered.length === 0 ? <div className="empty-state filtered-empty"><strong>没有符合条件的工单</strong><p>请调整或清除筛选条件。</p></div> : (
         <>

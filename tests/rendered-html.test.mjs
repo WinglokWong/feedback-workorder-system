@@ -305,17 +305,18 @@ test("后台默认展示创建工单并按角色提供对应功能模块", async
   assert.match(workspace, /label:"变更状态"/);
   assert.match(workspace, /label:"账号管理"/);
   assert.match(workspace, /label:"操作日志"/);
-  assert.match(workspace, /label:"AI助手"/);
-  assert.match(workspace, /active === "assistant"/);
+  assert.doesNotMatch(workspace, /label:"AI助手"|active === "assistant"/);
   assert.match(form, /mode === "create"/);
   assert.match(form, /mode === "manage"/);
 });
 
-test("AI助手通过受控工具检索工单并在确认后修改状态", async () => {
-  const [route, component, workspace, service, css] = await Promise.all([
+test("首页侧边AI助手通过受控工具检索、联动页面并在确认后修改状态", async () => {
+  const [route, component, home, board, page, service, css] = await Promise.all([
     readFile(new URL("../app/api/assistant/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../components/AiAssistant.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../components/AdminWorkspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/HomeWorkspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/TicketBoard.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../deploy/workorder.service", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
@@ -329,12 +330,25 @@ test("AI助手通过受控工具检索工单并在确认后修改状态", async 
   assert.match(route, /https:\/\/api\.deepseek\.com\/chat\/completions/);
   assert.match(route, /deepseek-v4-flash/);
   assert.match(route, /appEnv\(\)\.DEEPSEEK_API_KEY/);
+  assert.match(route, /pageFilterFor/);
+  assert.match(route, /pageFilter/);
   assert.doesNotMatch(component, /DEEPSEEK_API_KEY|sk-/);
   assert.match(component, /确认执行/);
   assert.match(component, /取消本次修改/);
-  assert.match(workspace, /<AiAssistant/);
+  assert.match(component, /ai-fab/);
+  assert.match(component, /ai-drawer/);
+  assert.match(component, /隐藏AI助手/);
+  assert.match(component, /onApplyFilter\(result\.pageFilter\)/);
+  assert.match(home, /<TicketBoard/);
+  assert.match(home, /<AiAssistant/);
+  assert.match(home, /scrollIntoView/);
+  assert.match(board, /aiFilter\?\.systemName/);
+  assert.match(board, /AI筛选已应用/);
+  assert.match(page, /<HomeWorkspace/);
   assert.match(service, /--env-file \/etc\/workorder\.env/);
   assert.match(css, /\.ai-messages/);
+  assert.match(css, /\.ai-drawer \{ position:fixed/);
+  assert.match(css, /\.ai-filter-banner/);
 });
 
 test("支持 iOS 与 Android 添加到主屏幕且不缓存业务数据", async () => {
