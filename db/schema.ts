@@ -2,6 +2,7 @@ import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const tickets = sqliteTable("tickets", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  ticketNumber: text("ticket_number").unique(),
   title: text("title").notNull(),
   content: text("content").notNull(),
   scheduledAt: integer("scheduled_at", { mode: "timestamp_ms" }).notNull(),

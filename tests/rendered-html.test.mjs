@@ -62,6 +62,9 @@ test("完整管理员流程：反馈人、处理状态、部署状态和删除",
   let ticket = list.tickets.find((item) => item.id === id);
   assert.ok(ticket);
   assert.equal(ticket.title, "");
+  assert.match(ticket.ticketNumber, /^\d{6}$/);
+  assert.match(list.tickets.find((item) => item.id === newerId).ticketNumber, /^\d{6}$/);
+  assert.notEqual(ticket.ticketNumber, list.tickets.find((item) => item.id === newerId).ticketNumber);
   assert.equal(ticket.systemName, marker);
   assert.equal(ticket.reporter, "测试反馈人");
   assert.equal(ticket.status, "pending");
@@ -148,6 +151,9 @@ test("管理表单会准确显示累计附件并支持单独移除", async () =>
   assert.match(source, /setManageReporter/);
   assert.match(source, /filteredTickets/);
   assert.match(source, /已有工单筛选条件/);
+  assert.match(source, /manageTicketNumber/);
+  assert.match(source, /ticket\.ticketNumber\.includes\(manageTicketNumber\)/);
+  assert.match(source, /输入6位编号/);
   assert.doesNotMatch(source, /manage-meta.*deployment-badge/);
 });
 
@@ -219,6 +225,9 @@ test("图片附件保存原始字节且不执行压缩或转码", async () => {
 test("首页支持系统、反馈人、日期、处理状态、部署状态和紧急程度组合筛选", async () => {
   const source = await readFile(new URL("../components/TicketBoard.tsx", import.meta.url), "utf8");
   assert.match(source, /setSystem/);
+  assert.match(source, /setTicketNumber/);
+  assert.match(source, /ticket\.ticketNumber\.includes\(ticketNumber\)/);
+  assert.match(source, /ticket-number-badge/);
   assert.match(source, /setReporter/);
   assert.match(source, /setDate/);
   assert.match(source, /setStatus/);
@@ -438,6 +447,27 @@ test("工单接口拒绝匿名访问并保持创建时间倒序", async () => {
   assert.match(source, /WHERE 1 = 0/);
   assert.match(source, /deployment_status TEXT NOT NULL DEFAULT 'undeployed'/);
   assert.match(source, /deploymentStatus:row\.deployment_status/);
+  assert.match(source, /ticketNumber:row\.ticket_number/);
+  assert.match(source, /CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_ticket_number/);
+  assert.match(source, /assignTicketNumber/);
+});
+
+test("每个工单自动生成唯一六位数字编号并为历史数据补号", async () => {
+  const [tickets, createRoute, schema, migration] = await Promise.all([
+    readFile(new URL("../lib/tickets.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/tickets/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0008_dizzy_lord_hawal.sql", import.meta.url), "utf8"),
+  ]);
+  assert.match(tickets, /100000 \+ id/);
+  assert.match(tickets, /String\(100000 \+ \(bytes\[0\] % 900000\)\)/);
+  assert.match(tickets, /ticket_number IS NULL OR length\(ticket_number\) <> 6/);
+  assert.match(tickets, /UPDATE tickets SET ticket_number = \? WHERE id = \?/);
+  assert.match(createRoute, /ticketNumber = await assignTicketNumber\(DB, ticketId\)/);
+  assert.match(createRoute, /Response\.json\(\{ id:ticketId, ticketNumber \}/);
+  assert.match(schema, /ticketNumber: text\("ticket_number"\)\.unique\(\)/);
+  assert.match(migration, /printf\('%06d', 100000 \+ `id`\)/);
+  assert.match(migration, /CREATE UNIQUE INDEX/);
 });
 
 test("导航使用标准链接并统一 favicon logo", async () => {

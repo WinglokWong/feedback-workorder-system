@@ -1,5 +1,5 @@
 import { currentUser, isAdmin, writeLog } from "../../../lib/admin";
-import { appEnv, ensureSchema, isAllowedFile, listTickets, safeFileName } from "../../../lib/tickets";
+import { appEnv, assignTicketNumber, ensureSchema, isAllowedFile, listTickets, safeFileName } from "../../../lib/tickets";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +50,9 @@ export async function POST(request: Request) {
     const inserted = await DB.prepare("INSERT INTO tickets (title, content, scheduled_at, created_at, author_email, reporter, system_id, status, deployment_status, urgency, created_by_user_id, assigned_user_id, completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .bind(title, content, scheduledAt, now, user.email, reporter || null, systemId, status, deploymentStatus, urgency, user.id, assignedUserId, status === "completed" ? 1 : 0, status === "completed" ? now : null).run();
     const ticketId = Number(inserted.meta.last_row_id);
+    let ticketNumber:string;
+    try { ticketNumber = await assignTicketNumber(DB, ticketId); }
+    catch (error) { await DB.prepare("DELETE FROM tickets WHERE id = ?").bind(ticketId).run(); throw error; }
     const uploaded: string[] = [];
     try {
       for (const file of files) {
@@ -64,8 +67,8 @@ export async function POST(request: Request) {
       await DB.prepare("DELETE FROM tickets WHERE id = ?").bind(ticketId).run();
       throw error;
     }
-    await writeLog(user, "创建工单", "工单", ticketId, `${title ? `标题：${title}` : "无标题工单"}；部署状态：${deploymentStatus}；修改人：${assignedUserId ?? "全部"}`);
-    return Response.json({ id:ticketId }, { status:201 });
+    await writeLog(user, "创建工单", "工单", ticketId, `编号：${ticketNumber}；${title ? `标题：${title}` : "无标题工单"}；部署状态：${deploymentStatus}；修改人：${assignedUserId ?? "全部"}`);
+    return Response.json({ id:ticketId, ticketNumber }, { status:201 });
   } catch {
     return Response.json({ error:"工单创建失败，请检查内容后重试。" }, { status:500 });
   }

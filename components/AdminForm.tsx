@@ -50,6 +50,7 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
   const [actionId, setActionId] = useState<number | null>(null);
   const [editingTicket, setEditingTicket] = useState<TicketRecord | null>(null);
   const [editFiles, setEditFiles] = useState<File[]>([]);
+  const [manageTicketNumber, setManageTicketNumber] = useState("");
   const [manageSystem, setManageSystem] = useState("");
   const [manageReporter, setManageReporter] = useState("");
   const [managePage, setManagePage] = useState(1);
@@ -58,22 +59,23 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
   const manageSystems = useMemo(() => Array.from(new Map(tickets.map((ticket) => [String(ticket.systemId ?? "unclassified"), ticket.systemName ?? "未分类"]))).map(([id, name]) => ({ id, name })), [tickets]);
   const manageReporters = useMemo(() => Array.from(new Set(tickets.map((ticket) => ticket.reporter).filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b, "zh-CN")), [tickets]);
   const filteredTickets = useMemo(() => tickets.filter((ticket) => {
+    if (manageTicketNumber && !ticket.ticketNumber.includes(manageTicketNumber)) return false;
     if (manageSystem && String(ticket.systemId ?? "unclassified") !== manageSystem) return false;
     if (manageReporter === EMPTY_REPORTER && ticket.reporter) return false;
     if (manageReporter && manageReporter !== EMPTY_REPORTER && ticket.reporter !== manageReporter) return false;
     return true;
-  }), [tickets, manageSystem, manageReporter]);
-  const hasManageFilters = Boolean(manageSystem || manageReporter);
+  }), [tickets, manageTicketNumber, manageSystem, manageReporter]);
+  const hasManageFilters = Boolean(manageTicketNumber || manageSystem || manageReporter);
   const managePageCount = Math.max(1, Math.ceil(filteredTickets.length / managePageSize));
   const pagedManageTickets = filteredTickets.slice((managePage - 1) * managePageSize, managePage * managePageSize);
 
   useEffect(() => {
     if (manageSystem && !manageSystems.some((system) => system.id === manageSystem)) setManageSystem("");
   }, [manageSystem, manageSystems]);
-  useEffect(() => { setManagePage(1); }, [manageSystem, manageReporter, managePageSize]);
+  useEffect(() => { setManagePage(1); }, [manageTicketNumber, manageSystem, manageReporter, managePageSize]);
   useEffect(() => { if (managePage > managePageCount) setManagePage(managePageCount); }, [managePage, managePageCount]);
 
-  function clearManageFilters() { setManageSystem(""); setManageReporter(""); }
+  function clearManageFilters() { setManageTicketNumber(""); setManageSystem(""); setManageReporter(""); }
 
   async function createSystem(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSystemBusy(true); setMessage("");
@@ -273,10 +275,10 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
       {mode === "manage" && <>
       <section className="admin-section">
         <div className="admin-section-title"><div><span>03</span><h2>已有工单</h2></div><small>当前 {filteredTickets.length} / 共 {tickets.length} 条</small></div>
-        {tickets.length > 0 && <div className="manage-filters" aria-label="已有工单筛选条件"><label><span>系统</span><select value={manageSystem} onChange={(event) => setManageSystem(event.target.value)}><option value="">全部系统</option>{manageSystems.map((system) => <option value={system.id} key={system.id}>{system.name}</option>)}</select></label><label><span>反馈人</span><select value={manageReporter} onChange={(event) => setManageReporter(event.target.value)}><option value="">全部反馈人</option><option value={EMPTY_REPORTER}>未填写</option>{manageReporters.map((reporter) => <option value={reporter} key={reporter}>{reporter}</option>)}</select></label><button type="button" disabled={!hasManageFilters} onClick={clearManageFilters}>清除筛选</button></div>}
+        {tickets.length > 0 && <div className="manage-filters" aria-label="已有工单筛选条件"><label><span>工单编号</span><input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={manageTicketNumber} onChange={(event) => setManageTicketNumber(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="输入6位编号" /></label><label><span>系统</span><select value={manageSystem} onChange={(event) => setManageSystem(event.target.value)}><option value="">全部系统</option>{manageSystems.map((system) => <option value={system.id} key={system.id}>{system.name}</option>)}</select></label><label><span>反馈人</span><select value={manageReporter} onChange={(event) => setManageReporter(event.target.value)}><option value="">全部反馈人</option><option value={EMPTY_REPORTER}>未填写</option>{manageReporters.map((reporter) => <option value={reporter} key={reporter}>{reporter}</option>)}</select></label><button type="button" disabled={!hasManageFilters} onClick={clearManageFilters}>清除筛选</button></div>}
         {tickets.length === 0 ? <p className="admin-empty">暂无工单</p> : filteredTickets.length === 0 ? <p className="admin-empty">没有符合条件的工单</p> : <>
           <div className="manage-list">{pagedManageTickets.map((ticket) => <article className="manage-item" key={ticket.id}>
-            <div><div className="manage-meta"><span>{ticket.systemName ?? "未分类"}</span><time>{new Date(ticket.scheduledAt).toLocaleDateString("zh-CN", { timeZone:"Asia/Shanghai" })}</time><em className="urgency-badge">{urgencyStars(ticket.urgency)}</em>{ticket.reporter && <em>反馈人：{ticket.reporter}</em>}<em>创建人：{ticket.createdByName ?? "未知"}</em><em>修改人：{ticket.assignedUserName ?? "全部"}</em></div><h3>{ticket.title || "无标题工单"}</h3><p>{ticket.content}</p></div>
+            <div><div className="manage-meta"><b className="ticket-number-badge">#{ticket.ticketNumber}</b><span>{ticket.systemName ?? "未分类"}</span><time>{new Date(ticket.scheduledAt).toLocaleDateString("zh-CN", { timeZone:"Asia/Shanghai" })}</time><em className="urgency-badge">{urgencyStars(ticket.urgency)}</em>{ticket.reporter && <em>反馈人：{ticket.reporter}</em>}<em>创建人：{ticket.createdByName ?? "未知"}</em><em>修改人：{ticket.assignedUserName ?? "全部"}</em></div><h3>{ticket.title || "无标题工单"}</h3><p>{ticket.content}</p></div>
             <div className="manage-actions"><select aria-label={`设置“${ticket.title || "无标题工单"}”的状态`} className={`status-select status-${ticket.status}`} value={ticket.status} disabled={actionId === ticket.id} onChange={(event) => updateStatus(ticket, event.target.value as TicketRecord["status"])}><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select><select aria-label={`设置“${ticket.title || "无标题工单"}”的部署状态`} className={`deployment-select deployment-${ticket.deploymentStatus}`} value={ticket.deploymentStatus} disabled={actionId === ticket.id} onChange={(event) => updateDeploymentStatus(ticket, event.target.value as TicketRecord["deploymentStatus"])}><option value="undeployed">未部署</option><option value="deployed">已部署</option></select>{(superAdmin || ticket.createdByUserId === currentUserId) && <button className="edit-button" type="button" disabled={actionId === ticket.id} onClick={() => toggleEdit(ticket)}>修改</button>}<button className="danger-button" type="button" disabled={actionId === ticket.id} onClick={() => deleteTicket(ticket)}>删除</button></div>
             {editingTicket?.id === ticket.id && <form className="ticket-edit-form" onSubmit={updateTicket}>
               <div className="ticket-edit-heading"><strong>修改工单内容</strong><small>创建人及超级管理员可以保存修改</small></div>
