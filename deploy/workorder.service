@@ -10,7 +10,7 @@ WorkingDirectory=/opt/workorder/current
 Environment=NODE_ENV=production
 Environment=HOME=/var/lib/workorder
 Environment=XDG_CONFIG_HOME=/var/lib/workorder/.config
-ExecStart=/usr/bin/npx wrangler dev --config wrangler.server.jsonc --local --persist-to /var/lib/workorder/state --ip 127.0.0.1 --port 18081 --log-level warn
+ExecStart=/usr/bin/npx wrangler dev --config wrangler.server.jsonc --local --persist-to /var/lib/workorder/state --env-file /etc/workorder.env --ip 127.0.0.1 --port 18081 --log-level warn
 Restart=always
 RestartSec=5
 NoNewPrivileges=true

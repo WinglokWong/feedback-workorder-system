@@ -15,6 +15,7 @@ A lightweight internal work order and feedback management system. The current pr
 - Administrator and super administrator roles
 - Account creation, suspension, restoration, password changes, and password resets
 - Filterable operation logs visible only to super administrators
+- DeepSeek-powered natural-language search and confirmed status updates
 - Responsive mobile interface and installable Web App support
 
 ## Technology
@@ -35,6 +36,8 @@ npm run dev
 ```
 
 Open `http://localhost:3000` after the development server starts. A test super administrator is created only for a fresh local development environment. Production deployments must provide `BOOTSTRAP_SUPERADMIN_USERNAME` and `BOOTSTRAP_SUPERADMIN_PASSWORD` through the runtime environment. Never store real credentials in source code or commit them to Git.
+
+The AI assistant additionally requires a server-side `DEEPSEEK_API_KEY`. Keep it in an ignored local environment file or a protected production secret file; never expose it to client-side code.
 
 ## Validation
 

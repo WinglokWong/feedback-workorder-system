@@ -34,7 +34,7 @@ export type DeploymentStatus = "undeployed" | "deployed";
 
 export type SystemRecord = { id:number; name:string; createdAt:number };
 
-type AppEnv = { DB: D1Database; FILES: R2Bucket; BOOTSTRAP_SUPERADMIN_USERNAME?:string; BOOTSTRAP_SUPERADMIN_PASSWORD?:string };
+type AppEnv = { DB: D1Database; FILES: R2Bucket; BOOTSTRAP_SUPERADMIN_USERNAME?:string; BOOTSTRAP_SUPERADMIN_PASSWORD?:string; DEEPSEEK_API_KEY?:string };
 export function appEnv() { return env as unknown as AppEnv; }
 
 function sixDigitCandidate(id:number) {

@@ -295,7 +295,7 @@ test("操作日志仅超级管理员可见并支持账户与日期筛选", async
   assert.match(workspace, /superAdmin \? \[/);
 });
 
-test("后台默认只展示创建工单并按角色提供四个模块", async () => {
+test("后台默认展示创建工单并按角色提供对应功能模块", async () => {
   const [workspace, form] = await Promise.all([
     readFile(new URL("../components/AdminWorkspace.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/AdminForm.tsx", import.meta.url), "utf8"),
@@ -305,8 +305,36 @@ test("后台默认只展示创建工单并按角色提供四个模块", async ()
   assert.match(workspace, /label:"变更状态"/);
   assert.match(workspace, /label:"账号管理"/);
   assert.match(workspace, /label:"操作日志"/);
+  assert.match(workspace, /label:"AI助手"/);
+  assert.match(workspace, /active === "assistant"/);
   assert.match(form, /mode === "create"/);
   assert.match(form, /mode === "manage"/);
+});
+
+test("AI助手通过受控工具检索工单并在确认后修改状态", async () => {
+  const [route, component, workspace, service, css] = await Promise.all([
+    readFile(new URL("../app/api/assistant/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/AiAssistant.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/AdminWorkspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../deploy/workorder.service", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /search_tickets/);
+  assert.match(route, /get_ticket/);
+  assert.match(route, /update_ticket_status/);
+  assert.match(route, /update_deployment_status/);
+  assert.match(route, /canViewOrUpdateTicket/);
+  assert.match(route, /prepareConfirmation/);
+  assert.match(route, /AI助手更新工单状态/);
+  assert.match(route, /https:\/\/api\.deepseek\.com\/chat\/completions/);
+  assert.match(route, /deepseek-v4-flash/);
+  assert.match(route, /appEnv\(\)\.DEEPSEEK_API_KEY/);
+  assert.doesNotMatch(component, /DEEPSEEK_API_KEY|sk-/);
+  assert.match(component, /确认执行/);
+  assert.match(component, /取消本次修改/);
+  assert.match(workspace, /<AiAssistant/);
+  assert.match(service, /--env-file \/etc\/workorder\.env/);
+  assert.match(css, /\.ai-messages/);
 });
 
 test("支持 iOS 与 Android 添加到主屏幕且不缓存业务数据", async () => {
