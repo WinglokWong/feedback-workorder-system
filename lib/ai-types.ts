@@ -1,9 +1,12 @@
 export type AiTicketFilter = {
   ticketNumber?:string;
   systemName?:string;
-  date?:string;
-  dateFrom?:string;
-  dateTo?:string;
+  feedbackDate?:string;
+  feedbackDateFrom?:string;
+  feedbackDateTo?:string;
+  publishedDate?:string;
+  publishedDateFrom?:string;
+  publishedDateTo?:string;
   reporter?:string;
   status?:"pending"|"processing"|"completed";
   deploymentStatus?:"undeployed"|"deployed";

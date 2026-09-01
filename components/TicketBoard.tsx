@@ -32,9 +32,13 @@ export default function TicketBoard({ tickets, unavailable, aiFilter = null, onC
     if (aiFilter?.ticketNumber && !ticket.ticketNumber.includes(aiFilter.ticketNumber)) return false;
     if (aiFilter?.systemName && !(ticket.systemName ?? "未分类").toLocaleLowerCase("zh-CN").includes(aiFilter.systemName.toLocaleLowerCase("zh-CN"))) return false;
     if (aiFilter?.reporter && !(ticket.reporter ?? "").toLocaleLowerCase("zh-CN").includes(aiFilter.reporter.toLocaleLowerCase("zh-CN"))) return false;
-    if (aiFilter?.date && ticketDate !== aiFilter.date) return false;
-    if (aiFilter?.dateFrom && ticketDate < aiFilter.dateFrom) return false;
-    if (aiFilter?.dateTo && ticketDate > aiFilter.dateTo) return false;
+    const publishedDate = dateKeyFormatter.format(ticket.createdAt);
+    if (aiFilter?.feedbackDate && ticketDate !== aiFilter.feedbackDate) return false;
+    if (aiFilter?.feedbackDateFrom && ticketDate < aiFilter.feedbackDateFrom) return false;
+    if (aiFilter?.feedbackDateTo && ticketDate > aiFilter.feedbackDateTo) return false;
+    if (aiFilter?.publishedDate && publishedDate !== aiFilter.publishedDate) return false;
+    if (aiFilter?.publishedDateFrom && publishedDate < aiFilter.publishedDateFrom) return false;
+    if (aiFilter?.publishedDateTo && publishedDate > aiFilter.publishedDateTo) return false;
     if (aiFilter?.status && ticket.status !== aiFilter.status) return false;
     if (aiFilter?.deploymentStatus && ticket.deploymentStatus !== aiFilter.deploymentStatus) return false;
     if (aiFilter?.urgency && ticket.urgency !== aiFilter.urgency) return false;
@@ -80,7 +84,7 @@ export default function TicketBoard({ tickets, unavailable, aiFilter = null, onC
         <label><span>工单编号</span><input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={ticketNumber} onChange={(event) => setTicketNumber(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="输入6位编号" /></label>
         <label><span>系统</span><select value={system} onChange={(event) => setSystem(event.target.value)}><option value="">全部系统</option>{systems.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
         <label><span>反馈人</span><select value={reporter} onChange={(event) => setReporter(event.target.value)}><option value="">全部反馈人</option><option value={EMPTY_REPORTER}>未填写</option>{reporters.map((name) => <option value={name} key={name}>{name}</option>)}</select></label>
-        <label><span>日期</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+        <label><span>反馈日期</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
         <label><span>工单状态</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">全部状态</option><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select></label>
         <label><span>部署状态</span><select value={deploymentStatus} onChange={(event) => setDeploymentStatus(event.target.value)}><option value="">全部部署状态</option><option value="undeployed">未部署</option><option value="deployed">已部署</option></select></label>
         <label><span>紧急程度</span><select value={urgency} onChange={(event) => setUrgency(event.target.value)}><option value="">全部星级</option><option value="1">★☆☆☆☆ 1 星</option><option value="2">★★☆☆☆ 2 星</option><option value="3">★★★☆☆ 3 星</option><option value="4">★★★★☆ 4 星</option><option value="5">★★★★★ 5 星</option></select></label>

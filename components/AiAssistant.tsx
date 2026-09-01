@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import type { AiTicketFilter } from "../lib/ai-types";
 
 type Message = { role:"user"|"assistant"; content:string };
-type Confirmation = { tool:"update_ticket_status"|"update_deployment_status"; arguments:Record<string, unknown> };
+type Confirmation = { tool:"update_ticket_status"|"update_deployment_status"|"batch_update_ticket_status"|"batch_update_deployment_status"; arguments:Record<string, unknown> };
 type AssistantResult = { message?:string; error?:string; confirmation?:Confirmation; pageFilter?:AiTicketFilter|null };
 
-const welcome:Message = { role:"assistant", content:"你好，我可以帮你检索工单并直接更新首页列表，也可以在确认后修改处理状态或部署状态。" };
+const welcome:Message = { role:"assistant", content:"你好，我可以帮你检索工单并直接更新首页列表，也可以修改单条或多条工单状态；批量操作只需统一确认一次。" };
 const examples = ["查询今天的未部署工单", "查找星云实践平台的待处理工单", "工单100001现在是什么状态？"];
 
 export default function AiAssistant({ onApplyFilter }:{ onApplyFilter:(filter:AiTicketFilter) => void }) {
@@ -66,7 +66,7 @@ export default function AiAssistant({ onApplyFilter }:{ onApplyFilter:(filter:Ai
     {open && <aside className="ai-drawer" aria-label="AI工单助手">
       <header className="ai-drawer-header"><div><span>AI</span><strong>工单助手</strong></div><div><button type="button" onClick={clearConversation}>清空</button><button type="button" aria-label="关闭AI助手" onClick={() => setOpen(false)}>×</button></div></header>
       <section className="ai-assistant">
-        <div className="ai-notice"><span>查询结果会同步筛选首页；修改状态需二次确认。</span></div>
+        <div className="ai-notice"><span>查询结果会同步筛选首页；多条工单可批量修改并统一确认一次。</span></div>
         <div className="ai-examples" aria-label="示例指令">{examples.map((example) => <button type="button" disabled={busy || Boolean(pending)} onClick={() => submit(undefined, example)} key={example}>{example}</button>)}</div>
         <div className="ai-messages" ref={messageBox} aria-live="polite">{messages.map((message, index) => <div className={`ai-message ai-message-${message.role}`} key={`${message.role}-${index}`}><span>{message.role === "user" ? "你" : "AI"}</span><p>{message.content}</p></div>)}{busy && <div className="ai-message ai-message-assistant"><span>AI</span><p>正在处理…</p></div>}</div>
         {pending && <div className="ai-confirm" role="alertdialog" aria-label="确认工单修改"><p>以上修改尚未执行，请确认。</p><div><button type="button" disabled={busy} onClick={cancel}>取消</button><button className="confirm-action" type="button" disabled={busy} onClick={confirm}>{busy ? "执行中…" : "确认执行"}</button></div></div>}

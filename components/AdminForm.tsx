@@ -260,7 +260,7 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
           <label><span>系统 *</span><select name="systemId" required defaultValue=""><option value="" disabled>{systems.length ? "请选择系统" : "请先创建系统"}</option>{systems.map((system) => <option value={system.id} key={system.id}>{system.name}</option>)}</select></label>
           <label><span>标题 <small>选填</small></span><input name="title" maxLength={120} placeholder="例如：例行维护通知" /></label>
           <label><span>反馈人 <small>选填</small></span><input name="reporter" maxLength={80} placeholder="填写反馈人姓名或称呼" /></label>
-          <label><span>日期 *</span><input name="scheduledAt" type="date" defaultValue={localDate()} required /></label>
+          <label><span>反馈日期 *</span><input name="scheduledAt" type="date" defaultValue={localDate()} required /></label>
           <label><span>状态 *</span><select name="status" defaultValue="pending" required><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select></label>
           <label><span>部署状态 *</span><select name="deploymentStatus" defaultValue="undeployed" required><option value="undeployed">未部署</option><option value="deployed">已部署</option></select></label>
           <label><span>紧急程度 <small>默认 1 星</small></span><select name="urgency" defaultValue="1"><option value="1">★☆☆☆☆ 1 星</option><option value="2">★★☆☆☆ 2 星</option><option value="3">★★★☆☆ 3 星</option><option value="4">★★★★☆ 4 星</option><option value="5">★★★★★ 5 星（最紧急）</option></select></label>
@@ -285,7 +285,7 @@ export default function AdminForm({ systems, tickets, assignees, mode, currentUs
               <label><span>系统 *</span><select name="systemId" required defaultValue={ticket.systemId ?? ""}><option value="" disabled>请选择系统</option>{systems.map((system) => <option value={system.id} key={system.id}>{system.name}</option>)}</select></label>
               <label><span>标题 <small>选填</small></span><input name="title" maxLength={120} defaultValue={ticket.title} /></label>
               <label><span>反馈人 <small>选填</small></span><input name="reporter" maxLength={80} defaultValue={ticket.reporter ?? ""} /></label>
-              <label><span>日期 *</span><input name="scheduledAt" type="date" required defaultValue={formDate(ticket.scheduledAt)} /></label>
+              <label><span>反馈日期 *</span><input name="scheduledAt" type="date" required defaultValue={formDate(ticket.scheduledAt)} /></label>
               <label><span>状态 *</span><select name="status" required defaultValue={ticket.status}><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select></label>
               <label><span>部署状态 *</span><select name="deploymentStatus" required defaultValue={ticket.deploymentStatus}><option value="undeployed">未部署</option><option value="deployed">已部署</option></select></label>
               <label><span>紧急程度 *</span><select name="urgency" required defaultValue={ticket.urgency}><option value="1">★☆☆☆☆ 1 星</option><option value="2">★★☆☆☆ 2 星</option><option value="3">★★★☆☆ 3 星</option><option value="4">★★★★☆ 4 星</option><option value="5">★★★★★ 5 星（最紧急）</option></select></label>

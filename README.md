@@ -15,7 +15,7 @@ A lightweight internal work order and feedback management system. The current pr
 - Administrator and super administrator roles
 - Account creation, suspension, restoration, password changes, and password resets
 - Filterable operation logs visible only to super administrators
-- DeepSeek-powered natural-language search and confirmed status updates
+- DeepSeek-powered natural-language search with page-synced results and single-confirmation batch status updates
 - Responsive mobile interface and installable Web App support
 
 ## Technology
