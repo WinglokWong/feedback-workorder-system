@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import type { AiTicketFilter } from "../lib/ai-types";
 
 type Message = { role:"user"|"assistant"; content:string };
-type Confirmation = { tool:"update_ticket_status"|"update_deployment_status"|"batch_update_ticket_status"|"batch_update_deployment_status"; arguments:Record<string, unknown> };
-type AssistantResult = { message?:string; error?:string; confirmation?:Confirmation; pageFilter?:AiTicketFilter|null };
+type Confirmation = { tool:"update_ticket_status"|"update_deployment_status"|"update_ticket_states"|"batch_update_ticket_status"|"batch_update_deployment_status"|"batch_update_ticket_states"; arguments:Record<string, unknown> };
+type ResultContext = { ticketNumbers:string[] };
+type AssistantResult = { message?:string; error?:string; confirmation?:Confirmation; pageFilter?:AiTicketFilter|null; resultContext?:ResultContext|null };
 
 const welcome:Message = { role:"assistant", content:"你好，我可以帮你检索工单并直接更新首页列表，也可以修改单条或多条工单状态；批量操作只需统一确认一次。" };
 const examples = ["查询今天的未部署工单", "查找星云实践平台的待处理工单", "工单100001现在是什么状态？"];
@@ -20,6 +21,7 @@ export default function AiAssistant({ onApplyFilter }:{ onApplyFilter:(filter:Ai
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Confirmation | null>(null);
   const [lastAction, setLastAction] = useState<Confirmation | null>(null);
+  const [resultContext, setResultContext] = useState<ResultContext | null>(null);
 
   useEffect(() => { if (open) messageBox.current?.scrollTo({ top:messageBox.current.scrollHeight, behavior:"smooth" }); }, [messages, busy, open]);
 
@@ -37,9 +39,10 @@ export default function AiAssistant({ onApplyFilter }:{ onApplyFilter:(filter:Ai
     const history = messages.slice(-8);
     setMessages((current) => [...current, { role:"user", content:text }]); setInput(""); setBusy(true);
     try {
-      const result = await request({ message:text, history, recentAction:lastAction });
+      const result = await request({ message:text, history, recentAction:lastAction, resultContext });
       setMessages((current) => [...current, { role:"assistant", content:result.message ?? "请求已处理。" }]);
       if (result.pageFilter) onApplyFilter(result.pageFilter);
+      if (result.resultContext) setResultContext(result.resultContext);
       setPending(result.confirmation ?? null);
     } catch (error) {
       setMessages((current) => [...current, { role:"assistant", content:error instanceof Error ? error.message : "AI助手暂时不可用。" }]);
@@ -59,7 +62,7 @@ export default function AiAssistant({ onApplyFilter }:{ onApplyFilter:(filter:Ai
   }
 
   function cancel() { setPending(null); setMessages((current) => [...current, { role:"assistant", content:"已取消本次修改，没有变更任何工单。" }]); }
-  function clearConversation() { setMessages([welcome]); setPending(null); setLastAction(null); setInput(""); }
+  function clearConversation() { setMessages([welcome]); setPending(null); setLastAction(null); setResultContext(null); setInput(""); }
   function handleKeyDown(event:KeyboardEvent<HTMLTextAreaElement>) { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }
 
   return <>

@@ -327,6 +327,12 @@ test("首页侧边AI助手通过受控工具检索、联动页面并在确认后
   assert.match(route, /update_deployment_status/);
   assert.match(route, /batch_update_ticket_status/);
   assert.match(route, /batch_update_deployment_status/);
+  assert.match(route, /update_ticket_states/);
+  assert.match(route, /batch_update_ticket_states/);
+  assert.match(route, /同时要求修改处理状态和部署状态/);
+  assert.match(route, /UPDATE tickets SET status = \?, completed = \?, completed_at = \?, deployment_status = \?/);
+  assert.match(route, /AI助手同时更新两个状态/);
+  assert.match(route, /AI助手批量同时更新两个状态/);
   assert.match(route, /ticket_numbers/);
   assert.match(route, /严禁逐条调用单条修改工具/);
   assert.match(route, /统一确认一次/);
@@ -336,6 +342,9 @@ test("首页侧边AI助手通过受控工具检索、联动页面并在确认后
   assert.match(route, /singleMutations\.length > 1/);
   assert.match(route, /prepareRecentBatchFollowUp/);
   assert.match(route, /recentAction/);
+  assert.match(route, /resultContext/);
+  assert.match(route, /combinedNumbers/);
+  assert.match(route, /statusMutation && deploymentMutation/);
   assert.match(route, /当前没有待确认的操作/);
   assert.match(route, /未执行任何变更：AI没有生成有效的修改工具调用/);
   assert.match(route, /反馈日期.*scheduled_at/);
@@ -358,9 +367,12 @@ test("首页侧边AI助手通过受控工具检索、联动页面并在确认后
   assert.doesNotMatch(component, /DEEPSEEK_API_KEY|sk-/);
   assert.match(component, /确认执行/);
   assert.match(component, /batch_update_ticket_status/);
+  assert.match(component, /batch_update_ticket_states/);
   assert.match(component, /lastAction/);
   assert.match(component, /recentAction:lastAction/);
   assert.match(component, /setLastAction\(action\)/);
+  assert.match(component, /resultContext/);
+  assert.match(component, /setResultContext/);
   assert.match(component, /取消本次修改/);
   assert.match(component, /ai-fab/);
   assert.match(component, /ai-drawer/);
