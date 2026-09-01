@@ -42,7 +42,7 @@ export default function AiAssistant({ onApplyFilter }:{ onApplyFilter:(filter:Ai
       const result = await request({ message:text, history, recentAction:lastAction, resultContext });
       setMessages((current) => [...current, { role:"assistant", content:result.message ?? "请求已处理。" }]);
       if (result.pageFilter) onApplyFilter(result.pageFilter);
-      if (result.resultContext) setResultContext(result.resultContext);
+      if (result.resultContext) { setResultContext(result.resultContext); setLastAction(null); }
       setPending(result.confirmation ?? null);
     } catch (error) {
       setMessages((current) => [...current, { role:"assistant", content:error instanceof Error ? error.message : "AI助手暂时不可用。" }]);

@@ -119,7 +119,7 @@ async function runReadTool(name:ToolName, args:Record<string, unknown>, user:Non
 }
 
 async function directReadRequest(input:string, user:NonNullable<Awaited<ReturnType<typeof currentUser>>>):Promise<{ name:"search_tickets"|"get_ticket"; args:Record<string, unknown> }|null> {
-  if (hasMutationIntent(input)) return null;
+  const mutation = hasMutationIntent(input);
   const number = input.match(/(?<!\d)#?(\d{6})(?!\d)/)?.[1];
   if (number) return { name:"get_ticket", args:{ ticket_number:number } };
   if (!requiresTicketTool(input)) return null;
@@ -140,9 +140,12 @@ async function directReadRequest(input:string, user:NonNullable<Awaited<ReturnTy
     return chinese ? `${chinese[1] ?? today.slice(0, 4)}-${chinese[2].padStart(2, "0")}-${chinese[3].padStart(2, "0")}` : "";
   })();
   if (date) args[input.includes("发布时间") || input.includes("发布的") || input.includes("创建时间") ? "published_date" : "feedback_date"] = date;
-  const status = targetTicketStatus(input); if (status) args.status = status;
-  const deployment = targetDeploymentStatus(input); if (deployment) args.deployment_status = deployment;
+  if (!mutation) {
+    const status = targetTicketStatus(input); if (status) args.status = status;
+    const deployment = targetDeploymentStatus(input); if (deployment) args.deployment_status = deployment;
+  }
   const urgency = Number(input.match(/([1-5])\s*星/u)?.[1] ?? 0); if (urgency) args.urgency = urgency;
+  if (mutation && !Object.keys(args).length) return null;
   if (Object.keys(args).length || /工单|查询|查找|检索|搜索|列出/u.test(input)) return { name:"search_tickets", args };
   return null;
 }
@@ -265,7 +268,7 @@ async function executeConfirmation(confirmation:Confirmation, user:NonNullable<A
 }
 
 async function prepareRecentBatchFollowUp(input:string, recent:Confirmation|null, user:NonNullable<Awaited<ReturnType<typeof currentUser>>>) {
-  if (!recent || !hasMutationIntent(input)) return null;
+  if (!recent || !hasMutationIntent(input) || !/(改回|恢复|刚才|这些|上述|上一批|再改|重新)/u.test(input)) return null;
   const numbers = cleanTicketNumbers(recent.arguments.ticket_numbers);
   const single = cleanString(recent.arguments.ticket_number, 6);
   const ticketNumbers = numbers.length ? numbers : /^\d{6}$/.test(single) ? [single] : [];
@@ -307,18 +310,31 @@ export async function POST(request:Request) {
   const input = cleanString(body.message, 1000);
   if (!input) return Response.json({ error:"请输入要查询或操作的内容。" }, { status:400 });
   if (/^(确认|确定|执行|好的|是)$/u.test(input)) return Response.json({ error:"当前没有待确认的操作。状态修改只能通过确认框的“确认执行”按钮完成。" }, { status:409 });
-  const recentFollowUp = await prepareRecentBatchFollowUp(input, cleanConfirmation(body.recentAction), user);
-  if (recentFollowUp) return Response.json(recentFollowUp, { status:"error" in recentFollowUp ? 400 : 200 });
   const explicitNumbers = Array.from(new Set(input.match(/(?<!\d)\d{6}(?!\d)/g) ?? [])).slice(0, 30);
   const contextNumbers = cleanResultContext(body.resultContext);
-  const combinedNumbers = explicitNumbers.length ? explicitNumbers : contextNumbers;
-  const directStatus = targetTicketStatus(input); const directDeployment = targetDeploymentStatus(input);
-  if (hasMutationIntent(input) && directStatus && directDeployment && combinedNumbers.length) {
-    const pending = await prepareConfirmation(combinedNumbers.length > 1 ? "batch_update_ticket_states" : "update_ticket_states", combinedNumbers.length > 1 ? { ticket_numbers:combinedNumbers, status:directStatus, deployment_status:directDeployment } : { ticket_number:combinedNumbers[0], status:directStatus, deployment_status:directDeployment }, user);
-    return Response.json(pending, { status:"error" in pending ? 400 : 200 });
-  }
+  const refersToPreviousAction = /(改回|恢复|刚才|这些|上述|上一批|再改|重新)/u.test(input);
   const directRead = await directReadRequest(input, user);
-  if (directRead) {
+  let targetNumbers = explicitNumbers.length ? explicitNumbers : refersToPreviousAction ? [] : contextNumbers;
+  let targetPageFilter:AiTicketFilter | null = null;
+  let targetResultContext:{ ticketNumbers:string[] } | null = null;
+  if (hasMutationIntent(input) && directRead) {
+    const directPayload = verifiedReadPayload(directRead.name, directRead.args, await runReadTool(directRead.name, directRead.args, user));
+    if ("error" in directPayload) return Response.json(directPayload, { status:400 });
+    targetNumbers = directPayload.resultContext.ticketNumbers;
+    targetPageFilter = directPayload.pageFilter;
+    targetResultContext = directPayload.resultContext;
+    if (!targetNumbers.length) return Response.json({ error:"没有找到符合当前条件的工单，未执行任何变更。", pageFilter:targetPageFilter, resultContext:targetResultContext }, { status:404 });
+  }
+  const directStatus = targetTicketStatus(input); const directDeployment = targetDeploymentStatus(input);
+  if (hasMutationIntent(input) && targetNumbers.length && (directStatus || directDeployment)) {
+    const tool:ToolName = directStatus && directDeployment ? (targetNumbers.length > 1 ? "batch_update_ticket_states" : "update_ticket_states") : directStatus ? (targetNumbers.length > 1 ? "batch_update_ticket_status" : "update_ticket_status") : (targetNumbers.length > 1 ? "batch_update_deployment_status" : "update_deployment_status");
+    const args = targetNumbers.length > 1 ? { ticket_numbers:targetNumbers, ...(directStatus ? { status:directStatus } : {}), ...(directDeployment ? { deployment_status:directDeployment } : {}) } : { ticket_number:targetNumbers[0], ...(directStatus ? { status:directStatus } : {}), ...(directDeployment ? { deployment_status:directDeployment } : {}) };
+    const pending = await prepareConfirmation(tool, args, user);
+    return Response.json({ ...pending, pageFilter:targetPageFilter, resultContext:targetResultContext }, { status:"error" in pending ? 400 : 200 });
+  }
+  const recentFollowUp = await prepareRecentBatchFollowUp(input, cleanConfirmation(body.recentAction), user);
+  if (recentFollowUp) return Response.json(recentFollowUp, { status:"error" in recentFollowUp ? 400 : 200 });
+  if (directRead && !hasMutationIntent(input)) {
     const payload = verifiedReadPayload(directRead.name, directRead.args, await runReadTool(directRead.name, directRead.args, user));
     return Response.json(payload, { status:"error" in payload ? 400 : 200 });
   }

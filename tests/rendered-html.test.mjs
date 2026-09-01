@@ -343,7 +343,7 @@ test("首页侧边AI助手通过受控工具检索、联动页面并在确认后
   assert.match(route, /prepareRecentBatchFollowUp/);
   assert.match(route, /recentAction/);
   assert.match(route, /resultContext/);
-  assert.match(route, /combinedNumbers/);
+  assert.match(route, /targetNumbers/);
   assert.match(route, /statusMutation && deploymentMutation/);
   assert.match(route, /当前没有待确认的操作/);
   assert.match(route, /未执行任何变更：AI没有生成有效的修改工具调用/);
@@ -358,6 +358,10 @@ test("首页侧边AI助手通过受控工具检索、联动页面并在确认后
   assert.match(route, /#?\(\\d\{6\}\)/);
   assert.match(route, /await runReadTool\(directRead\.name/);
   assert.doesNotMatch(route, /\[“\\"\]/);
+  assert.match(route, /refersToPreviousAction/);
+  assert.match(route, /targetNumbers = directPayload\.resultContext\.ticketNumbers/);
+  assert.match(route, /没有找到符合当前条件的工单，未执行任何变更/);
+  assert.ok(route.indexOf("const directRead = await directReadRequest") < route.indexOf("const recentFollowUp = await prepareRecentBatchFollowUp"));
   assert.match(route, /反馈日期.*scheduled_at/);
   assert.match(route, /发布时间.*created_at/);
   assert.match(route, /feedback_date/);
@@ -384,6 +388,7 @@ test("首页侧边AI助手通过受控工具检索、联动页面并在确认后
   assert.match(component, /setLastAction\(action\)/);
   assert.match(component, /resultContext/);
   assert.match(component, /setResultContext/);
+  assert.match(component, /setResultContext\(result\.resultContext\); setLastAction\(null\)/);
   assert.match(component, /取消本次修改/);
   assert.match(component, /ai-fab/);
   assert.match(component, /ai-drawer/);
