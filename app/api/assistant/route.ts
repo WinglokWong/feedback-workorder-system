@@ -25,6 +25,14 @@ const tools = [
 
 function cleanString(value:unknown, max = 120) { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
 function cleanTicketNumbers(value:unknown) { return Array.isArray(value) ? Array.from(new Set(value.map((item) => cleanString(item, 6)).filter((item) => /^\d{6}$/.test(item)))).slice(0, 30) : []; }
+function cleanConfirmation(value:unknown):Confirmation | null {
+  if (!value || typeof value !== "object") return null;
+  const tool = (value as { tool?:unknown }).tool;
+  const args = (value as { arguments?:unknown }).arguments;
+  if (!(tool === "update_ticket_status" || tool === "update_deployment_status" || tool === "batch_update_ticket_status" || tool === "batch_update_deployment_status") || !args || typeof args !== "object") return null;
+  return { tool, arguments:args as Record<string, unknown> };
+}
+function hasMutationIntent(input:string) { return /(改为|改成|改回|修改|变更|更新为|设为|设置为|标记为|恢复为|调整为|全部.{0,8}(已部署|未部署|待处理|处理中|已完成))/u.test(input); }
 function validDate(value:string) { return !value || /^\d{4}-\d{2}-\d{2}$/.test(value); }
 function pageFilterFor(name:ToolName, args:Record<string, unknown>):AiTicketFilter | null {
   if (name === "get_ticket") {
@@ -182,6 +190,19 @@ async function executeConfirmation(confirmation:Confirmation, user:NonNullable<A
   return { error:"不支持的确认操作。" };
 }
 
+async function prepareRecentBatchFollowUp(input:string, recent:Confirmation|null, user:NonNullable<Awaited<ReturnType<typeof currentUser>>>) {
+  if (!recent || !hasMutationIntent(input)) return null;
+  const numbers = cleanTicketNumbers(recent.arguments.ticket_numbers);
+  const single = cleanString(recent.arguments.ticket_number, 6);
+  const ticketNumbers = numbers.length ? numbers : /^\d{6}$/.test(single) ? [single] : [];
+  if (!ticketNumbers.length) return null;
+  const deployment = input.includes("未部署") ? "undeployed" : input.includes("已部署") ? "deployed" : null;
+  if (deployment) return prepareConfirmation(ticketNumbers.length > 1 ? "batch_update_deployment_status" : "update_deployment_status", ticketNumbers.length > 1 ? { ticket_numbers:ticketNumbers, deployment_status:deployment } : { ticket_number:ticketNumbers[0], deployment_status:deployment }, user);
+  const status = input.includes("待处理") ? "pending" : input.includes("处理中") ? "processing" : input.includes("已完成") ? "completed" : null;
+  if (status) return prepareConfirmation(ticketNumbers.length > 1 ? "batch_update_ticket_status" : "update_ticket_status", ticketNumbers.length > 1 ? { ticket_numbers:ticketNumbers, status } : { ticket_number:ticketNumbers[0], status }, user);
+  return null;
+}
+
 async function callDeepSeek(messages:ChatMessage[], apiKey:string) {
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 45000);
   try {
@@ -201,13 +222,18 @@ export async function POST(request:Request) {
   const user = await currentUser();
   if (!user) return Response.json({ error:"请先登录管理员账号。" }, { status:401 });
   if (!isAdmin(user)) return Response.json({ error:"当前账号没有管理员权限。" }, { status:403 });
-  const body = await request.json() as { message?:unknown; history?:unknown; confirmation?:Confirmation };
-  if (body.confirmation) {
-    const result = await executeConfirmation(body.confirmation, user);
+  const body = await request.json() as { message?:unknown; history?:unknown; confirmation?:unknown; recentAction?:unknown };
+  const confirmation = cleanConfirmation(body.confirmation);
+  if (body.confirmation && !confirmation) return Response.json({ error:"确认操作无效，请重新发起修改。" }, { status:400 });
+  if (confirmation) {
+    const result = await executeConfirmation(confirmation, user);
     return Response.json(result, { status:"error" in result ? 400 : 200 });
   }
   const input = cleanString(body.message, 1000);
   if (!input) return Response.json({ error:"请输入要查询或操作的内容。" }, { status:400 });
+  if (/^(确认|确定|执行|好的|是)$/u.test(input)) return Response.json({ error:"当前没有待确认的操作。状态修改只能通过确认框的“确认执行”按钮完成。" }, { status:409 });
+  const recentFollowUp = await prepareRecentBatchFollowUp(input, cleanConfirmation(body.recentAction), user);
+  if (recentFollowUp) return Response.json(recentFollowUp, { status:"error" in recentFollowUp ? 400 : 200 });
   const apiKey = appEnv().DEEPSEEK_API_KEY;
   if (!apiKey) return Response.json({ error:"AI助手尚未配置API Key。" }, { status:503 });
   const history = Array.isArray(body.history) ? body.history.slice(-8).flatMap((item) => {
@@ -225,7 +251,10 @@ export async function POST(request:Request) {
     for (let turn = 0; turn < 5; turn += 1) {
       const assistant = await callDeepSeek(messages, apiKey);
       messages.push({ role:"assistant", content:assistant.content ?? null, tool_calls:assistant.tool_calls });
-      if (!assistant.tool_calls?.length) return Response.json({ message:verifiedReadMessage ?? assistant.content ?? "没有找到相关结果。", pageFilter });
+      if (!assistant.tool_calls?.length) {
+        if (hasMutationIntent(input)) return Response.json({ error:"未执行任何变更：AI没有生成有效的修改工具调用，请重新描述目标状态。" }, { status:409 });
+        return Response.json({ message:verifiedReadMessage ?? assistant.content ?? "没有找到相关结果。", pageFilter });
+      }
       const singleMutations = assistant.tool_calls.filter((call) => call.function.name === "update_ticket_status" || call.function.name === "update_deployment_status");
       if (singleMutations.length > 1 && singleMutations.every((call) => call.function.name === singleMutations[0].function.name)) {
         const parsed = singleMutations.map((call) => { try { return JSON.parse(call.function.arguments) as Record<string, unknown>; } catch { return {}; } });

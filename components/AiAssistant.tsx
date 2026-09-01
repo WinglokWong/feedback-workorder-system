@@ -19,6 +19,7 @@ export default function AiAssistant({ onApplyFilter }:{ onApplyFilter:(filter:Ai
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Confirmation | null>(null);
+  const [lastAction, setLastAction] = useState<Confirmation | null>(null);
 
   useEffect(() => { if (open) messageBox.current?.scrollTo({ top:messageBox.current.scrollHeight, behavior:"smooth" }); }, [messages, busy, open]);
 
@@ -36,7 +37,7 @@ export default function AiAssistant({ onApplyFilter }:{ onApplyFilter:(filter:Ai
     const history = messages.slice(-8);
     setMessages((current) => [...current, { role:"user", content:text }]); setInput(""); setBusy(true);
     try {
-      const result = await request({ message:text, history });
+      const result = await request({ message:text, history, recentAction:lastAction });
       setMessages((current) => [...current, { role:"assistant", content:result.message ?? "请求已处理。" }]);
       if (result.pageFilter) onApplyFilter(result.pageFilter);
       setPending(result.confirmation ?? null);
@@ -51,14 +52,14 @@ export default function AiAssistant({ onApplyFilter }:{ onApplyFilter:(filter:Ai
     try {
       const result = await request({ confirmation:action });
       setMessages((current) => [...current, { role:"assistant", content:result.message ?? "操作已完成。" }]);
-      setPending(null); router.refresh();
+      setLastAction(action); setPending(null); router.refresh();
     } catch (error) {
       setMessages((current) => [...current, { role:"assistant", content:error instanceof Error ? error.message : "操作失败。" }]);
     } finally { setBusy(false); }
   }
 
   function cancel() { setPending(null); setMessages((current) => [...current, { role:"assistant", content:"已取消本次修改，没有变更任何工单。" }]); }
-  function clearConversation() { setMessages([welcome]); setPending(null); setInput(""); }
+  function clearConversation() { setMessages([welcome]); setPending(null); setLastAction(null); setInput(""); }
   function handleKeyDown(event:KeyboardEvent<HTMLTextAreaElement>) { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }
 
   return <>

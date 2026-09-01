@@ -334,6 +334,10 @@ test("首页侧边AI助手通过受控工具检索、联动页面并在确认后
   assert.match(route, /AI助手批量更新工单状态/);
   assert.match(route, /AI助手批量更新部署状态/);
   assert.match(route, /singleMutations\.length > 1/);
+  assert.match(route, /prepareRecentBatchFollowUp/);
+  assert.match(route, /recentAction/);
+  assert.match(route, /当前没有待确认的操作/);
+  assert.match(route, /未执行任何变更：AI没有生成有效的修改工具调用/);
   assert.match(route, /反馈日期.*scheduled_at/);
   assert.match(route, /发布时间.*created_at/);
   assert.match(route, /feedback_date/);
@@ -354,6 +358,9 @@ test("首页侧边AI助手通过受控工具检索、联动页面并在确认后
   assert.doesNotMatch(component, /DEEPSEEK_API_KEY|sk-/);
   assert.match(component, /确认执行/);
   assert.match(component, /batch_update_ticket_status/);
+  assert.match(component, /lastAction/);
+  assert.match(component, /recentAction:lastAction/);
+  assert.match(component, /setLastAction\(action\)/);
   assert.match(component, /取消本次修改/);
   assert.match(component, /ai-fab/);
   assert.match(component, /ai-drawer/);
