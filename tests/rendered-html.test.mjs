@@ -347,6 +347,17 @@ test("首页侧边AI助手通过受控工具检索、联动页面并在确认后
   assert.match(route, /statusMutation && deploymentMutation/);
   assert.match(route, /当前没有待确认的操作/);
   assert.match(route, /未执行任何变更：AI没有生成有效的修改工具调用/);
+  assert.match(route, /requiresTicketTool/);
+  assert.match(route, /name:"search_tickets"/);
+  assert.match(route, /未执行查询：AI没有生成有效的检索工具调用/);
+  assert.match(route, /tool_choice:toolChoice/);
+  assert.match(route, /directReadRequest/);
+  assert.match(route, /knownReporter/);
+  assert.match(route, /knownSystem/);
+  assert.match(route, /verifiedReadPayload/);
+  assert.match(route, /#?\(\\d\{6\}\)/);
+  assert.match(route, /await runReadTool\(directRead\.name/);
+  assert.doesNotMatch(route, /\[“\\"\]/);
   assert.match(route, /反馈日期.*scheduled_at/);
   assert.match(route, /发布时间.*created_at/);
   assert.match(route, /feedback_date/);

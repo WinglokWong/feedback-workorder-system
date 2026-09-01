@@ -35,6 +35,7 @@ function cleanConfirmation(value:unknown):Confirmation | null {
   return { tool, arguments:args as Record<string, unknown> };
 }
 function hasMutationIntent(input:string) { return /(改为|改成|改回|修改|变更|更新为|设为|设置为|标记为|恢复为|调整为|全部.{0,8}(已部署|未部署|待处理|处理中|已完成))/u.test(input); }
+function requiresTicketTool(input:string) { return /(工单|反馈人|系统|编号|待处理|处理中|已完成|未部署|已部署|反馈日期|发布时间|查询|查找|查看|检索|搜索|列出|多少条|几条)/u.test(input); }
 function targetTicketStatus(input:string):TicketRecord["status"]|null { return input.includes("待处理") ? "pending" : input.includes("处理中") ? "processing" : input.includes("已完成") ? "completed" : null; }
 function targetDeploymentStatus(input:string):TicketRecord["deploymentStatus"]|null { return input.includes("未部署") ? "undeployed" : input.includes("已部署") ? "deployed" : null; }
 function cleanResultContext(value:unknown) { if (!value || typeof value !== "object") return []; return cleanTicketNumbers((value as { ticketNumbers?:unknown }).ticketNumbers); }
@@ -115,6 +116,44 @@ async function runReadTool(name:ToolName, args:Record<string, unknown>, user:Non
     return true;
   });
   return { count:filtered.length, tickets:filtered.slice(0, 30).map((ticket) => publicTicket(ticket)), truncated:filtered.length > 30 };
+}
+
+async function directReadRequest(input:string, user:NonNullable<Awaited<ReturnType<typeof currentUser>>>):Promise<{ name:"search_tickets"|"get_ticket"; args:Record<string, unknown> }|null> {
+  if (hasMutationIntent(input)) return null;
+  const number = input.match(/(?<!\d)#?(\d{6})(?!\d)/)?.[1];
+  if (number) return { name:"get_ticket", args:{ ticket_number:number } };
+  if (!requiresTicketTool(input)) return null;
+  const tickets = await listTickets(user); const args:Record<string, unknown> = {};
+  const knownReporter = Array.from(new Set(tickets.map((ticket) => ticket.reporter).filter((value): value is string => Boolean(value)))).sort((a, b) => b.length - a.length).find((reporter) => input.includes(reporter));
+  if (knownReporter && (input.includes("反馈人") || input.includes("反馈"))) args.reporter = knownReporter;
+  if (!args.reporter) {
+    const reporter = input.match(/反馈人\s*[：:]?\s*[“"]?(.{1,30}?)[”"]?(?=的?工单|[，。,；;\s]|$)/u)?.[1]?.trim();
+    if (reporter) args.reporter = reporter;
+  }
+  const knownSystem = Array.from(new Set(tickets.map((ticket) => ticket.systemName).filter((value): value is string => Boolean(value)))).sort((a, b) => b.length - a.length).find((system) => input.includes(system));
+  if (knownSystem) args.system_name = knownSystem;
+  const today = dateKeyFormatter.format(Date.now());
+  const date = input.includes("今天") ? today : input.includes("昨天") ? dateKeyFormatter.format(Date.now() - 86400000) : (() => {
+    const iso = input.match(/(?<!\d)(\d{4}-\d{1,2}-\d{1,2})(?!\d)/)?.[1];
+    if (iso) { const [year, month, day] = iso.split("-"); return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`; }
+    const chinese = input.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日/);
+    return chinese ? `${chinese[1] ?? today.slice(0, 4)}-${chinese[2].padStart(2, "0")}-${chinese[3].padStart(2, "0")}` : "";
+  })();
+  if (date) args[input.includes("发布时间") || input.includes("发布的") || input.includes("创建时间") ? "published_date" : "feedback_date"] = date;
+  const status = targetTicketStatus(input); if (status) args.status = status;
+  const deployment = targetDeploymentStatus(input); if (deployment) args.deployment_status = deployment;
+  const urgency = Number(input.match(/([1-5])\s*星/u)?.[1] ?? 0); if (urgency) args.urgency = urgency;
+  if (Object.keys(args).length || /工单|查询|查找|检索|搜索|列出/u.test(input)) return { name:"search_tickets", args };
+  return null;
+}
+
+function verifiedReadPayload(name:"search_tickets"|"get_ticket", args:Record<string, unknown>, result:Awaited<ReturnType<typeof runReadTool>>) {
+  if ("error" in result) return { error:result.error };
+  const pageFilter = pageFilterFor(name, args);
+  if ("count" in result) return { message:result.count ? `已从数据库检索到 ${result.count} 条符合条件的工单，首页列表已同步更新。` : "数据库中没有符合条件的工单，首页列表已同步显示为空。", pageFilter, resultContext:{ ticketNumbers:result.tickets.map((ticket) => ticket.ticketNumber) } };
+  if (!result.found) return { message:result.message, pageFilter, resultContext:{ ticketNumbers:[] } };
+  const ticket = result.ticket;
+  return { message:`工单 #${ticket.ticketNumber}\n标题：${ticket.title}\n系统：${ticket.system}\n反馈日期：${ticket.feedbackDate}\n发布时间：${ticket.publishedAt}\n处理状态：${ticket.status}\n部署状态：${ticket.deploymentStatus}\n反馈人：${ticket.reporter ?? "未填写"}\n紧急程度：${ticket.urgency}星`, pageFilter, resultContext:{ ticketNumbers:[ticket.ticketNumber] } };
 }
 
 async function prepareConfirmation(name:ToolName, args:Record<string, unknown>, user:NonNullable<Awaited<ReturnType<typeof currentUser>>>) {
@@ -239,12 +278,12 @@ async function prepareRecentBatchFollowUp(input:string, recent:Confirmation|null
   return null;
 }
 
-async function callDeepSeek(messages:ChatMessage[], apiKey:string) {
+async function callDeepSeek(messages:ChatMessage[], apiKey:string, toolChoice:"auto"|{ type:"function"; function:{ name:ToolName } } = "auto") {
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 45000);
   try {
     const response = await fetch("https://api.deepseek.com/chat/completions", {
       method:"POST", signal:controller.signal, headers:{ "content-type":"application/json", authorization:`Bearer ${apiKey}` },
-      body:JSON.stringify({ model:"deepseek-v4-flash", thinking:{ type:"disabled" }, messages, tools, tool_choice:"auto", max_tokens:1200 }),
+      body:JSON.stringify({ model:"deepseek-v4-flash", thinking:{ type:"disabled" }, messages, tools, tool_choice:toolChoice, max_tokens:1200 }),
     });
     if (!response.ok) throw new Error(`DeepSeek API 请求失败（${response.status}）`);
     const result = await response.json() as { choices?:Array<{ message?:ChatMessage }> };
@@ -278,6 +317,11 @@ export async function POST(request:Request) {
     const pending = await prepareConfirmation(combinedNumbers.length > 1 ? "batch_update_ticket_states" : "update_ticket_states", combinedNumbers.length > 1 ? { ticket_numbers:combinedNumbers, status:directStatus, deployment_status:directDeployment } : { ticket_number:combinedNumbers[0], status:directStatus, deployment_status:directDeployment }, user);
     return Response.json(pending, { status:"error" in pending ? 400 : 200 });
   }
+  const directRead = await directReadRequest(input, user);
+  if (directRead) {
+    const payload = verifiedReadPayload(directRead.name, directRead.args, await runReadTool(directRead.name, directRead.args, user));
+    return Response.json(payload, { status:"error" in payload ? 400 : 200 });
+  }
   const apiKey = appEnv().DEEPSEEK_API_KEY;
   if (!apiKey) return Response.json({ error:"AI助手尚未配置API Key。" }, { status:503 });
   const history = Array.isArray(body.history) ? body.history.slice(-8).flatMap((item) => {
@@ -294,10 +338,12 @@ export async function POST(request:Request) {
   let verifiedReadMessage:string | null = null;
   try {
     for (let turn = 0; turn < 5; turn += 1) {
-      const assistant = await callDeepSeek(messages, apiKey);
+      let assistant = await callDeepSeek(messages, apiKey);
+      if (!assistant.tool_calls?.length && requiresTicketTool(input) && !verifiedReadMessage && !pageFilter) assistant = await callDeepSeek(messages, apiKey, { type:"function", function:{ name:"search_tickets" } });
       messages.push({ role:"assistant", content:assistant.content ?? null, tool_calls:assistant.tool_calls });
       if (!assistant.tool_calls?.length) {
         if (hasMutationIntent(input)) return Response.json({ error:"未执行任何变更：AI没有生成有效的修改工具调用，请重新描述目标状态。" }, { status:409 });
+        if (requiresTicketTool(input)) return Response.json({ error:"未执行查询：AI没有生成有效的检索工具调用，请重新描述筛选条件。" }, { status:409 });
         return Response.json({ message:verifiedReadMessage ?? assistant.content ?? "没有找到相关结果。", pageFilter, resultContext });
       }
       const parsedCalls = assistant.tool_calls.map((call) => { let args:Record<string, unknown>; try { args = JSON.parse(call.function.arguments) as Record<string, unknown>; } catch { args = {}; } return { call, args }; });
