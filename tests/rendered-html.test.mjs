@@ -296,6 +296,20 @@ test("操作日志仅超级管理员可见并支持账户与日期筛选", async
   assert.match(workspace, /superAdmin \? \[/);
 });
 
+test("操作日志自动清除超过七天的数据并限制清理频率", async () => {
+  const [admin, workspace] = await Promise.all([
+    readFile(new URL("../lib/admin.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/AdminWorkspace.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(admin, /OPERATION_LOG_RETENTION_MS = 7 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(admin, /OPERATION_LOG_CLEANUP_INTERVAL_MS = 60 \* 60 \* 1000/);
+  assert.match(admin, /DELETE FROM operation_logs WHERE created_at < \?/);
+  assert.match(admin, /now - OPERATION_LOG_RETENTION_MS/);
+  assert.match(admin, /await cleanupExpiredOperationLogs\(DB\)/);
+  assert.match(admin, /nextOperationLogCleanupAt = 0/);
+  assert.match(workspace, /查看最近7天的账户操作记录/);
+});
+
 test("后台默认展示创建工单并按角色提供对应功能模块", async () => {
   const [workspace, form] = await Promise.all([
     readFile(new URL("../components/AdminWorkspace.tsx", import.meta.url), "utf8"),

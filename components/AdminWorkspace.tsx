@@ -16,7 +16,7 @@ export default function AdminWorkspace({ systems, tickets, assignees, accounts, 
     { key:"manage", label:"变更状态", description:"查看并处理已有工单", count:tickets.length },
     ...(superAdmin ? [
       { key:"accounts" as const, label:"账号管理", description:"创建、重置或禁用管理员", count:accounts.length },
-      { key:"logs" as const, label:"操作日志", description:"查看账户操作记录", count:logs.length },
+      { key:"logs" as const, label:"操作日志", description:"查看最近7天的账户操作记录", count:logs.length },
     ] : []),
   ];
   const current = modules.find((item) => item.key === active) ?? modules[0];

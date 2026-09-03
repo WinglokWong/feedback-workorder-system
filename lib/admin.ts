@@ -12,6 +12,17 @@ export type OperationLog = { id:number; userId:number|null; username:string; act
 
 const SESSION_COOKIE = "workorder_session";
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
+const OPERATION_LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const OPERATION_LOG_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+let nextOperationLogCleanupAt = 0;
+
+async function cleanupExpiredOperationLogs(db:D1Database) {
+  const now = Date.now();
+  if (now < nextOperationLogCleanupAt) return;
+  nextOperationLogCleanupAt = now + OPERATION_LOG_CLEANUP_INTERVAL_MS;
+  try { await db.prepare("DELETE FROM operation_logs WHERE created_at < ?").bind(now - OPERATION_LOG_RETENTION_MS).run(); }
+  catch { nextOperationLogCleanupAt = 0; }
+}
 
 function toBase64Url(bytes:Uint8Array) {
   let binary = ""; for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -43,6 +54,7 @@ export async function ensureAuthSchema() {
     DB.prepare("CREATE INDEX IF NOT EXISTS idx_operation_logs_user_id ON operation_logs (user_id)"),
     DB.prepare("CREATE INDEX IF NOT EXISTS idx_operation_logs_created_at ON operation_logs (created_at)"),
   ]);
+  await cleanupExpiredOperationLogs(DB);
   const count = await DB.prepare("SELECT COUNT(*) AS count FROM users").first<{ count:number }>();
   if ((count?.count ?? 0) === 0) {
     const environment = appEnv();
